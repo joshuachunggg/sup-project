@@ -522,6 +522,7 @@ const cardContent = document.createElement('div');
                 email: email,
                 password: password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/auth/callback`,
                     data: {
                         phone_number: phoneNumber,
                         first_name: firstName
@@ -531,26 +532,42 @@ const cardContent = document.createElement('div');
 
             if (authError) throw authError;
 
-            // Store email for resend functionality
-            localStorage.setItem('supdinner_signup_email', email);
-            
-            // Clear any existing user state since they're not fully authenticated yet
-            localStorage.removeItem('supdinner_user_id');
-            localStorage.removeItem('supdinner_auth_user_id');
-            
-            // Reset user state
-            currentUserState = { 
-                isLoggedIn: false, 
-                userId: null, 
-                joinedTableId: null, 
-                waitlistedTableIds: [], 
-                isSuspended: false, 
-                suspensionEndDate: null 
-            };
-            
-            // Show email verification modal
-            closeModal(authModal);
-            openModal(emailVerificationModal);
+            // Check if the signup was successful even if email failed
+            if (authData.user) {
+                // Store the auth user ID temporarily
+                localStorage.setItem('supdinner_temp_auth_user_id', authData.user.id);
+                localStorage.setItem('supdinner_signup_email', email);
+                
+                // Store the profile data for later creation
+                localStorage.setItem('supdinner_profile_data', JSON.stringify({
+                    phoneNumber,
+                    firstName,
+                    ageRange,
+                    referralSource,
+                    marketingOptIn,
+                    tableId: selectedTableId
+                }));
+                
+                // Clear any existing user state
+                localStorage.removeItem('supdinner_user_id');
+                localStorage.removeItem('supdinner_auth_user_id');
+                
+                // Reset user state
+                currentUserState = { 
+                    isLoggedIn: false, 
+                    userId: null, 
+                    joinedTableId: null, 
+                    waitlistedTableIds: [], 
+                    isSuspended: false, 
+                    suspensionEndDate: null 
+                };
+                
+                // Show email verification modal
+                closeModal(authModal);
+                openModal(emailVerificationModal);
+            } else {
+                throw new Error("Failed to create account. Please try again.");
+            }
             
         } catch(error) {
             authSignupError.textContent = `Error: ${error.message}`;
@@ -668,6 +685,44 @@ const cardContent = document.createElement('div');
     // Email verification modal
     closeEmailVerification.addEventListener('click', () => closeModal(emailVerificationModal));
     emailVerificationModal.addEventListener('click', (e) => { if (e.target === emailVerificationModal) closeModal(emailVerificationModal); });
+    
+    // Proceed without email verification (for testing)
+    document.getElementById('proceed-without-verification').addEventListener('click', async () => {
+        try {
+            const profileData = JSON.parse(localStorage.getItem('supdinner_profile_data'));
+            const tempAuthUserId = localStorage.getItem('supdinner_temp_auth_user_id');
+            
+            if (!profileData || !tempAuthUserId) {
+                alert('Profile data not found. Please try signing up again.');
+                return;
+            }
+            
+            // Create the user profile using the create-user-profile function
+            const { data, error } = await supabaseClient.functions.invoke('create-user-profile', { 
+                body: profileData 
+            });
+            
+            if (error) throw error;
+            
+            // Store the user IDs
+            localStorage.setItem('supdinner_user_id', data.userId);
+            localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+            
+            // Clear temporary data
+            localStorage.removeItem('supdinner_temp_auth_user_id');
+            localStorage.removeItem('supdinner_profile_data');
+            
+            // Close modal and refresh
+            closeModal(emailVerificationModal);
+            await refreshData();
+            
+            // Show success message
+            alert('Account created successfully! You can now log in.');
+            
+        } catch (error) {
+            alert(`Error creating profile: ${error.message}`);
+        }
+    });
     
     // Resend verification email
     resendVerification.addEventListener('click', async () => {
