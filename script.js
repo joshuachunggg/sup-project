@@ -1,18 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- SUPABASE CLIENT INITIALIZATION ---
-    const SUPABASE_URL = 'https://ennlvlcogzowropkwbiu.supabase.co'; // PASTE YOUR PROJECT URL HERE
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubmx2bGNvZ3pvd3JvcGt3Yml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MTIyMTAsImV4cCI6MjA2OTQ4ODIxMH0.dCsyTAsAhcvSpeUMxWSyo_9praZC2wPDzmb3vCkHpPc'; // PASTE YOUR ANON PUBLIC KEY HERE
+    const SUPABASE_URL = 'https://ennlvlcogzowropkwbiu.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubmx2bGNvZ3pvd3JvcGt3Yml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MTIyMTAsImV4cCI6MjA2OTQ4ODIxMH0.dCsyTAsAhcvSpeUMxWSyo_9praZC2wPDzmb3vCkHpPc';
     
-    if (SUPABASE_URL.includes('your-project-ref') || SUPABASE_ANON_KEY.includes('your-long-anon-key')) {
-        const container = document.querySelector('.container');
-        container.innerHTML = `<div class="text-center p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            <h2 class="font-bold text-lg">Configuration Needed</h2>
-            <p class="mt-2">Please open the HTML code and replace the placeholder <strong>SUPABASE_URL</strong> and <strong>SUPABASE_ANON_KEY</strong> with your actual keys from your Supabase project dashboard.</p>
-        </div>`;
-        return;
-    }
-
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // --- GLOBAL STATE ---
@@ -26,8 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let activeDate = '';
     let selectedTableId = null;
-    let signupAction = 'join'; // 'join' or 'waitlist'
-    let isNewUserFlow = false;
 
     // --- DOM ELEMENT REFERENCES ---
     const dayTabsContainer = document.getElementById('day-tabs');
@@ -51,7 +40,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const successMessage = document.getElementById('success-message');
     const disclaimerCheckbox = document.getElementById('disclaimer-checkbox');
     const marketingCheckbox = document.getElementById('marketing-checkbox');
-    const newUserFields = document.getElementById('new-user-fields');
 
     // Login Modal elements
     const loginModal = document.getElementById('login-modal');
@@ -308,7 +296,6 @@ const cardContent = document.createElement('div');
 
     const handleJoinClick = async (e) => {
         selectedTableId = parseInt(e.target.dataset.tableId);
-        signupAction = 'join';
         
         const { data: table } = await supabaseClient.from('tables').select('time, neighborhood').eq('id', selectedTableId).single();
         if (table) {
@@ -333,7 +320,6 @@ const cardContent = document.createElement('div');
     
     const handleJoinWaitlistClick = async (e) => {
         selectedTableId = parseInt(e.target.dataset.tableId);
-        signupAction = 'waitlist';
 
         if (!currentUserState.isLoggedIn) {
             const { data: table } = await supabaseClient.from('tables').select('time, neighborhood').eq('id', selectedTableId).single();
@@ -374,70 +360,47 @@ const cardContent = document.createElement('div');
         formError1.classList.add('hidden');
         joinSubmitButton.disabled = true;
 
-        if (isNewUserFlow) {
+        // Validate all required fields
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const phoneNumber = document.getElementById('phone-number').value;
+        const firstName = document.getElementById('first-name').value;
+        const ageRange = document.getElementById('age-range').value;
+        const referralSource = document.getElementById('referral-source').value;
+        const disclaimerChecked = document.getElementById('disclaimer-checkbox').checked;
+        const marketingOptIn = document.getElementById('marketing-checkbox').checked;
+
+        if (!email || !password || !phoneNumber || !firstName || !ageRange || !disclaimerChecked) {
+            formError1.textContent = "Please fill out all required fields and agree to the terms.";
+            formError1.classList.remove('hidden');
+            joinSubmitButton.disabled = false;
+            return;
+        }
+
+        try {
             const formData = {
-                firstName: document.getElementById('first-name').value,
-                phoneNumber: document.getElementById('phone-number').value,
-                ageRange: document.getElementById('age-range').value,
-                referralSource: document.getElementById('referral-source').value,
-                marketingOptIn: document.getElementById('marketing-checkbox').checked,
+                email: email,
+                password: password,
+                phoneNumber: phoneNumber,
+                firstName: firstName,
+                ageRange: ageRange,
+                referralSource: referralSource,
+                marketingOptIn: marketingOptIn,
                 tableId: selectedTableId
             };
+
+            const { data, error } = await supabaseClient.functions.invoke('auth-signup', { body: formData });
+            if (error) throw error;
             
-            if (!formData.firstName || !formData.ageRange) {
-                formError1.textContent = "Please fill out all your details.";
-                formError1.classList.remove('hidden');
-                joinSubmitButton.disabled = false;
-                return;
-            }
-
-            try {
-                const functionName = signupAction === 'join' ? 'signup-and-join' : 'signup-and-waitlist';
-                const { data, error } = await supabaseClient.functions.invoke(functionName, { body: formData });
-                if (error) throw error;
-                localStorage.setItem('supdinner_user_id', data.userId);
-                showSuccessStep();
-            } catch(error) {
-                formError1.textContent = `Error: ${error.message}`;
-                formError1.classList.remove('hidden');
-                joinSubmitButton.disabled = false;
-            }
-        } else {
-            const phoneNumber = document.getElementById('phone-number').value;
-            if (!phoneNumber) {
-                formError1.textContent = "Please enter your phone number.";
-                formError1.classList.remove('hidden');
-                joinSubmitButton.disabled = false;
-                return;
-            }
-            try {
-                const { data, error } = await supabaseClient.functions.invoke('get-user-by-phone', { body: { phoneNumber } });
-                if (error) throw error;
-
-                if (!data.userId) { 
-                    isNewUserFlow = true;
-                    newUserFields.classList.remove('hidden');
-                    joinSubmitButton.textContent = signupAction === 'join' ? 'Confirm & Join Table' : 'Confirm & Join Waitlist';
-                    joinSubmitButton.disabled = !disclaimerCheckbox.checked;
-                } else { 
-                    localStorage.setItem('supdinner_user_id', data.userId);
-                    const functionName = signupAction === 'join' ? 'join-table' : 'join-waitlist';
-                    const { error: actionError } = await supabaseClient.functions.invoke(functionName, {
-                        body: {
-                            tableId: selectedTableId,
-                            userId: data.userId
-                        }
-                    });
-
-                    if (actionError) throw actionError;
-                    
-                    showSuccessStep();
-                }
-            } catch (error) {
-                formError1.textContent = `Error: ${error.message}`;
-                formError1.classList.remove('hidden');
-                joinSubmitButton.disabled = false;
-            }
+            // Store both user IDs
+            localStorage.setItem('supdinner_user_id', data.userId);
+            localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+            
+            showSuccessStep();
+        } catch(error) {
+            formError1.textContent = `Error: ${error.message}`;
+            formError1.classList.remove('hidden');
+            joinSubmitButton.disabled = false;
         }
     });
 
@@ -458,23 +421,40 @@ const cardContent = document.createElement('div');
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         loginFormError.classList.add('hidden');
-        const phoneNumber = document.getElementById('login-phone-number').value;
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
 
-        if (!phoneNumber) {
-            loginFormError.textContent = "Please enter your phone number.";
+        if (!email || !password) {
+            loginFormError.textContent = "Please enter your email and password.";
             loginFormError.classList.remove('hidden');
             return;
         }
 
         try {
-            const { data, error } = await supabaseClient.functions.invoke('get-user-by-phone', { body: { phoneNumber } });
+            const { data, error } = await supabaseClient.functions.invoke('auth-login', { body: { email, password } });
             if (error) throw error;
 
-            if (data.userId) {
+            if (data.success) {
+                // Store both user IDs
                 localStorage.setItem('supdinner_user_id', data.userId);
+                localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+                
+                // Update user state
+                currentUserState = {
+                    isLoggedIn: true,
+                    userId: data.userId,
+                    joinedTableId: data.user.joinedTableId,
+                    waitlistedTableIds: data.user.waitlistedTableIds,
+                    isSuspended: data.user.isSuspended,
+                    suspensionEndDate: data.user.suspensionEndDate,
+                    name: data.user.firstName,
+                    phone: data.user.phoneNumber
+                };
+                
                 closeModal(loginModal);
+                await refreshData();
             } else {
-                loginFormError.textContent = "No user found with this phone number.";
+                loginFormError.textContent = "Login failed. Please try again.";
                 loginFormError.classList.remove('hidden');
             }
         } catch(error) {
@@ -507,9 +487,8 @@ const cardContent = document.createElement('div');
     });
 
     disclaimerCheckbox.addEventListener('change', () => {
-        if (isNewUserFlow) {
-            joinSubmitButton.disabled = !disclaimerCheckbox.checked;
-        }
+        // Always require disclaimer checkbox to be checked
+        joinSubmitButton.disabled = !disclaimerCheckbox.checked;
     });
 
     requestDisclaimerCheckbox.addEventListener('change', () => {
@@ -537,10 +516,7 @@ const cardContent = document.createElement('div');
             if (modal === joinModal) {
                  showModalStep(1, joinModal);
                  formError1.classList.add('hidden');
-                 newUserFields.classList.add('hidden');
-                 joinSubmitButton.textContent = 'Continue';
                  joinSubmitButton.disabled = false;
-                 isNewUserFlow = false;
             }
             if (modal === requestModal) {
                 showModalStep(1, requestModal);
@@ -563,13 +539,8 @@ const cardContent = document.createElement('div');
     }
     
     function showSuccessStep() {
-        if (signupAction === 'waitlist') {
-            successTitle.textContent = "You're on the waitlist!";
-            successMessage.textContent = "We'll let you know if a spot opens up. Thanks for your interest!";
-        } else {
-            successTitle.textContent = "You're In!";
-            successMessage.textContent = "Welcome to the table! We'll send the final details to your phone soon. See you there!";
-        }
+        successTitle.textContent = "You're In!";
+        successMessage.textContent = "Welcome to the table! We'll send the final details to your phone soon. See you there!";
         showModalStep(3, joinModal);
     }
 
