@@ -472,10 +472,18 @@ const cardContent = document.createElement('div');
                 });
                 
                 if (profileError) throw profileError;
-                profileData = profileResponse.user; // Extract the user object
+                
+                // Log the response to debug
+                console.log('Profile response:', profileResponse);
+                
+                if (profileResponse && profileResponse.success && profileResponse.user) {
+                    profileData = profileResponse.user; // Extract the user object
+                } else {
+                    console.log('Profile not found or invalid response');
+                }
             } catch (profileError) {
                 // Profile doesn't exist, we need to create it
-                console.log('Profile not found, will create new profile');
+                console.log('Profile not found, will create new profile:', profileError);
             }
             
             if (!profileData) {
@@ -505,11 +513,23 @@ const cardContent = document.createElement('div');
                 });
                 
                 if (createProfileError) throw createProfileError;
+                
+                // Log the created profile data to debug
+                console.log('Created profile data:', createProfileData);
+                
                 profileData = createProfileData;
             }
             
+            // Log the final profile data before validation
+            console.log('Final profile data before validation:', profileData);
+            
             // Validate profile data before proceeding
             if (!profileData.userId || !profileData.authUserId) {
+                console.error('Profile data validation failed:', {
+                    hasUserId: !!profileData.userId,
+                    hasAuthUserId: !!profileData.authUserId,
+                    profileData: profileData
+                });
                 throw new Error('Invalid profile data received. Please try again.');
             }
             
