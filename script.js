@@ -323,12 +323,26 @@ const cardContent = document.createElement('div');
             return;
         }
         
-        const { data: table } = await supabaseClient.from('tables').select('time, neighborhood').eq('id', selectedTableId).single();
-        if (table) {
-            modalTableDetails.innerHTML = `You're joining the <strong>${table.time}</strong> dinner in <strong>${table.neighborhood}</strong>.`;
+        // User is logged in, immediately join the table
+        try {
+            const { error } = await supabaseClient.functions.invoke('join-table', {
+                body: { tableId: selectedTableId, userId: currentUserState.userId }
+            });
+            
+            if (error) throw error;
+            
+            // Update user state
+            currentUserState.joinedTableId = selectedTableId;
+            
+            // Refresh the display
+            await refreshData();
+            
+            // Show success message
+            alert('Successfully joined the table!');
+            
+        } catch (error) {
+            alert(`Error joining table: ${error.message}`);
         }
-        joinModalTitle.textContent = "Join the Table";
-        openModal(joinModal);
     };
 
     const handleLeaveClick = async (e) => {
@@ -464,6 +478,9 @@ const cardContent = document.createElement('div');
             
             if (authError) throw authError;
             
+            // Small delay to ensure auth is fully established
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             // Check if user profile exists in our database
             let profileData = null;
             try {
@@ -482,8 +499,9 @@ const cardContent = document.createElement('div');
                     console.log('Profile not found or invalid response');
                 }
             } catch (profileError) {
-                // Profile doesn't exist, we need to create it
-                console.log('Profile not found, will create new profile:', profileError);
+                // Profile doesn't exist or there was an error, we need to create it
+                console.log('Profile retrieval failed, will create new profile:', profileError.message);
+                // Don't throw here - we'll handle it by creating a new profile
             }
             
             if (!profileData) {
