@@ -524,34 +524,35 @@ const cardContent = document.createElement('div');
             console.log('Final profile data before validation:', profileData);
             
             // Validate profile data before proceeding
-            if (!profileData.userId || !profileData.authUserId) {
+            // Note: Database returns 'id' and 'auth_user_id', not 'userId' and 'authUserId'
+            if (!profileData.id || !profileData.auth_user_id) {
                 console.error('Profile data validation failed:', {
-                    hasUserId: !!profileData.userId,
-                    hasAuthUserId: !!profileData.authUserId,
+                    hasId: !!profileData.id,
+                    hasAuthUserId: !!profileData.auth_user_id,
                     profileData: profileData
                 });
                 throw new Error('Invalid profile data received. Please try again.');
             }
             
             // Store user IDs in localStorage
-            localStorage.setItem('supdinner_user_id', profileData.userId);
-            localStorage.setItem('supdinner_auth_user_id', profileData.authUserId);
+            localStorage.setItem('supdinner_user_id', profileData.id);
+            localStorage.setItem('supdinner_auth_user_id', profileData.auth_user_id);
             
             console.log('Stored user IDs:', {
-                userId: profileData.userId,
-                authUserId: profileData.authUserId
+                userId: profileData.id,
+                authUserId: profileData.auth_user_id
             });
             
             // Update user state
             currentUserState = {
                 isLoggedIn: true,
-                userId: profileData.userId,
+                userId: profileData.id,
                 joinedTableId: profileData.joinedTableId || null,
                 waitlistedTableIds: profileData.waitlistedTableIds || [],
-                isSuspended: profileData.isSuspended || false,
-                suspensionEndDate: profileData.suspensionEndDate || null,
-                name: profileData.firstName,
-                phone: profileData.phoneNumber
+                isSuspended: profileData.is_suspended || false,
+                suspensionEndDate: profileData.suspension_end_date || null,
+                name: profileData.first_name,
+                phone: profileData.phone_number
             };
             
             closeModal(authModal);
