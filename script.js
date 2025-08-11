@@ -517,20 +517,20 @@ const cardContent = document.createElement('div');
         }
 
         try {
-            const formData = {
+            // First, create the Supabase Auth user (this automatically sends verification email)
+            const { data: authData, error: authError } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
-                phoneNumber: phoneNumber,
-                firstName: firstName,
-                ageRange: ageRange,
-                referralSource: referralSource,
-                marketingOptIn: marketingOptIn,
-                tableId: selectedTableId
-            };
+                options: {
+                    data: {
+                        phone_number: phoneNumber,
+                        first_name: firstName
+                    }
+                }
+            });
 
-            const { data, error } = await supabaseClient.functions.invoke('auth-signup', { body: formData });
-            if (error) throw error;
-            
+            if (authError) throw authError;
+
             // Store email for resend functionality
             localStorage.setItem('supdinner_signup_email', email);
             

@@ -14,8 +14,6 @@ serve(async (req) => {
 
   try {
     const { 
-      email, 
-      password, 
       phoneNumber, 
       firstName, 
       ageRange, 
@@ -24,63 +22,32 @@ serve(async (req) => {
       tableId 
     } = await req.json();
 
-    // Validate required fields
-    if (!email || !password || !phoneNumber || !firstName || !ageRange) {
-      throw new Error("Email, password, phone number, first name, and age range are required.");
+    // Get the auth user ID from the request headers
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error("No valid authorization token provided.");
     }
 
+    const token = authHeader.replace('Bearer ', '');
+    
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SERVICE_ROLE_KEY")!
     );
 
-    // 1. Check if a user with this email already exists in Supabase Auth
-    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
-    const emailExists = existingAuthUser.users.some(user => user.email === email);
-    
-    if (emailExists) {
-      throw new Error("An account with this email already exists. Please log in instead.");
+    // Verify the token and get user info
+    const { data: { user }, error: tokenError } = await supabaseAdmin.auth.getUser(token);
+    if (tokenError || !user) {
+      throw new Error("Invalid or expired token.");
     }
 
-    // 2. Check if a user with this phone number already exists (legacy user)
+    // Check if a user with this phone number already exists (legacy user)
     const { data: existingPhoneUser } = await supabaseAdmin
       .from("users")
       .select("id, auth_user_id, email")
       .eq("phone_number", phoneNumber)
       .maybeSingle();
 
-    // 3. Create Supabase Auth user
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email,
-      password: password,
-      email_confirm: false, // Require email verification
-      user_metadata: {
-        phone_number: phoneNumber,
-        first_name: firstName
-      }
-    });
-
-    if (authError) {
-      console.error("Auth user creation error:", authError);
-      throw new Error("Failed to create account. Please try again.");
-    }
-
-    // 4. Send verification email using the proper method
-    const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: email,
-      options: {
-        redirectTo: `${Deno.env.get("SUPABASE_URL")}/auth/callback`
-      }
-    });
-
-    if (emailError) {
-      console.error("Email verification error:", emailError);
-      // Don't fail the signup, but log the error
-      console.warn("User created but verification email failed to send");
-    }
-
-    // 4. Handle legacy user migration or create new user
     let userId: string;
     
     if (existingPhoneUser) {
@@ -88,8 +55,8 @@ serve(async (req) => {
       const { error: updateError } = await supabaseAdmin
         .from("users")
         .update({
-          auth_user_id: authUser.user.id,
-          email: email,
+          auth_user_id: user.id,
+          email: user.email,
           first_name: firstName,
           age_range: ageRange,
           referral_source: referralSource,
@@ -104,8 +71,8 @@ serve(async (req) => {
       const { data: newUser, error: insertError } = await supabaseAdmin
         .from("users")
         .insert({
-          auth_user_id: authUser.user.id,
-          email: email,
+          auth_user_id: user.id,
+          email: user.email,
           first_name: firstName,
           phone_number: phoneNumber,
           age_range: ageRange,
@@ -119,7 +86,7 @@ serve(async (req) => {
       userId = newUser.id;
     }
 
-    // 5. If tableId is provided, join the table
+    // If tableId is provided, join the table
     if (tableId) {
       // Check if the table is available
       const { data: table, error: tableError } = await supabaseAdmin
@@ -160,10 +127,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       userId: userId,
-      authUserId: authUser.user.id,
-      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Account created successfully!",
-      emailSent: true,
-      note: "Please check your email for a verification link. If you don't see it, check your spam folder."
+      authUserId: user.id,
+      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Profile created successfully!"
     }), {
       headers: { 
         "Content-Type": "application/json", 
@@ -172,7 +137,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error in auth-signup function:", error);
+    console.error("Error in create-user-profile function:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { 
         "Content-Type": "application/json", 

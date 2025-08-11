@@ -24,7 +24,7 @@ serve(async (req) => {
       Deno.env.get("SERVICE_ROLE_KEY")!
     );
 
-    // Resend verification email
+    // Resend verification email using the proper method
     const { error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'signup',
       email: email,

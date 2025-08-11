@@ -34,22 +34,14 @@ serve(async (req) => {
       Deno.env.get("SERVICE_ROLE_KEY")!
     );
 
-    // 1. Check if a user with this email already exists in Supabase Auth
-    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
-    const emailExists = existingAuthUser.users.some(user => user.email === email);
-    
-    if (emailExists) {
-      throw new Error("An account with this email already exists. Please log in instead.");
-    }
-
-    // 2. Check if a user with this phone number already exists (legacy user)
+    // 1. Check if a user with this phone number already exists (legacy user)
     const { data: existingPhoneUser } = await supabaseAdmin
       .from("users")
       .select("id, auth_user_id, email")
       .eq("phone_number", phoneNumber)
       .maybeSingle();
 
-    // 3. Create Supabase Auth user
+    // 2. Create Supabase Auth user - this should automatically send verification email
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
@@ -65,22 +57,7 @@ serve(async (req) => {
       throw new Error("Failed to create account. Please try again.");
     }
 
-    // 4. Send verification email using the proper method
-    const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email: email,
-      options: {
-        redirectTo: `${Deno.env.get("SUPABASE_URL")}/auth/callback`
-      }
-    });
-
-    if (emailError) {
-      console.error("Email verification error:", emailError);
-      // Don't fail the signup, but log the error
-      console.warn("User created but verification email failed to send");
-    }
-
-    // 4. Handle legacy user migration or create new user
+    // 3. Handle legacy user migration or create new user
     let userId: string;
     
     if (existingPhoneUser) {
@@ -119,7 +96,7 @@ serve(async (req) => {
       userId = newUser.id;
     }
 
-    // 5. If tableId is provided, join the table
+    // 4. If tableId is provided, join the table
     if (tableId) {
       // Check if the table is available
       const { data: table, error: tableError } = await supabaseAdmin
@@ -172,7 +149,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("Error in auth-signup function:", error);
+    console.error("Error in simple-signup function:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { 
         "Content-Type": "application/json", 
