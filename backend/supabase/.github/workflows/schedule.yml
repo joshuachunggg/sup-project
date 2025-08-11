@@ -1,0 +1,22 @@
+name: Run Supabase Daily Maintenance
+on:
+  schedule:
+    - cron: '0 * * * *' # Runs every hour at minute 0
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Supabase Edge Function
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await fetch(process.env.SUPABASE_FUNCTION_URL, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.SERVICE_ROLE_KEY}`
+              }
+            })
+        env:
+          SUPABASE_FUNCTION_URL: https://<YOUR-PROJECT-REF>.supabase.co/functions/v1/daily-table-maintenance
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SERVICE_ROLE_KEY }}
