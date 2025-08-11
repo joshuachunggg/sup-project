@@ -456,38 +456,83 @@ const cardContent = document.createElement('div');
         }
 
         try {
-            const { data, error } = await supabaseClient.functions.invoke('auth-login', { body: { email, password } });
-            if (error) throw error;
-
-            if (data.success) {
-                // Store both user IDs
-                localStorage.setItem('supdinner_user_id', data.userId);
-                localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+            // First, try to sign in with Supabase Auth
+            const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                email,
+                password
+            });
+            
+            if (authError) throw authError;
+            
+            // Check if user profile exists in our database
+            let profileData = null;
+            try {
+                const { data: profileResponse, error: profileError } = await supabaseClient.functions.invoke('get-user-by-auth-id', {
+                    body: { authUserId: authData.user.id }
+                });
                 
-                // Update user state
-                currentUserState = {
-                    isLoggedIn: true,
-                    userId: data.userId,
-                    joinedTableId: data.user.joinedTableId,
-                    waitlistedTableIds: data.user.waitlistedTableIds,
-                    isSuspended: data.user.isSuspended,
-                    suspensionEndDate: data.user.suspensionEndDate,
-                    name: data.user.firstName,
-                    phone: data.user.phoneNumber
-                };
+                if (profileError) throw profileError;
+                profileData = profileResponse.user; // Extract the user object
+            } catch (profileError) {
+                // Profile doesn't exist, we need to create it
+                console.log('Profile not found, will create new profile');
+            }
+            
+            if (!profileData) {
+                // Create the user profile using stored data or default values
+                const storedProfileData = localStorage.getItem('supdinner_profile_data');
+                let profileToCreate;
                 
-                closeModal(authModal);
-                await refreshData();
-                
-                // If user was trying to join a table, do it now
-                if (selectedTableId) {
-                    await joinTableAfterLogin(selectedTableId);
+                if (storedProfileData) {
+                    // Use stored profile data from signup
+                    profileToCreate = JSON.parse(storedProfileData);
+                    localStorage.removeItem('supdinner_profile_data'); // Clean up
+                } else {
+                    // Create minimal profile (this shouldn't happen in normal flow)
+                    profileToCreate = {
+                        phoneNumber: '',
+                        firstName: '',
+                        ageRange: '',
+                        referralSource: '',
+                        marketingOptIn: false,
+                        tableId: selectedTableId
+                    };
                 }
-            } else {
-                authLoginError.textContent = "Login failed. Please try again.";
-                authLoginError.classList.remove('hidden');
+                
+                // Create the profile
+                const { data: createProfileData, error: createProfileError } = await supabaseClient.functions.invoke('create-user-profile', {
+                    body: profileToCreate
+                });
+                
+                if (createProfileError) throw createProfileError;
+                profileData = createProfileData;
+            }
+            
+            // Store user IDs in localStorage
+            localStorage.setItem('supdinner_user_id', profileData.userId);
+            localStorage.setItem('supdinner_auth_user_id', profileData.authUserId);
+            
+            // Update user state
+            currentUserState = {
+                isLoggedIn: true,
+                userId: profileData.userId,
+                joinedTableId: profileData.joinedTableId || null,
+                waitlistedTableIds: profileData.waitlistedTableIds || [],
+                isSuspended: profileData.isSuspended || false,
+                suspensionEndDate: profileData.suspensionEndDate || null,
+                name: profileData.firstName,
+                phone: profileData.phoneNumber
+            };
+            
+            closeModal(authModal);
+            await refreshData();
+            
+            // If user was trying to join a table, do it now
+            if (selectedTableId) {
+                await joinTableAfterLogin(selectedTableId);
             }
         } catch(error) {
+            console.error('Login error:', error);
             authLoginError.textContent = `Error: ${error.message}`;
             authLoginError.classList.remove('hidden');
         }
