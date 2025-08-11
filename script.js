@@ -41,11 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const disclaimerCheckbox = document.getElementById('disclaimer-checkbox');
     const marketingCheckbox = document.getElementById('marketing-checkbox');
 
-    // Login Modal elements
-    const loginModal = document.getElementById('login-modal');
-    const loginForm = document.getElementById('login-form');
-    const loginFormError = document.getElementById('login-form-error');
-    const closeLoginModal = document.getElementById('close-login-modal');
+    // Auth Modal elements
+    const authModal = document.getElementById('auth-modal');
+    const authLoginStep = document.getElementById('auth-login-step');
+    const authSignupStep = document.getElementById('auth-signup-step');
+    const authLoginForm = document.getElementById('auth-login-form');
+    const authSignupForm = document.getElementById('auth-signup-form');
+    const authLoginError = document.getElementById('auth-login-error');
+    const authSignupError = document.getElementById('auth-signup-error');
+    const authSignupSubmit = document.getElementById('auth-signup-submit');
+    const closeAuthModal = document.getElementById('close-auth-modal');
+    const switchToSignup = document.getElementById('switch-to-signup');
+    const switchToLogin = document.getElementById('switch-to-login');
+    
+    // Email verification modal
+    const emailVerificationModal = document.getElementById('email-verification-modal');
+    const closeEmailVerification = document.getElementById('close-email-verification');
 
     // Request Modal elements
     const requestTableBtn = document.getElementById('request-table-btn');
@@ -119,6 +130,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (isUserWaitlisted) {
                         button = createButton('Leave Waitlist', ['leave-waitlist-button', 'btn-secondary']);
                         button.dataset.tableId = table.id;
+                    } else if (!currentUserState.isLoggedIn) {
+                        button = createButton('log in to join waitlist', ['join-waitlist-button', 'btn-primary']);
+                        button.dataset.tableId = table.id;
                     } else {
                         button = createButton('Join Waitlist', ['join-waitlist-button', 'btn-primary']);
                         button.dataset.tableId = table.id;
@@ -126,6 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     if (currentUserState.joinedTableId) {
                          button = createButton('In Another Table', ['btn-disabled'], true);
+                    } else if (!currentUserState.isLoggedIn) {
+                         button = createButton('log in to join table', ['join-button', 'btn-primary']);
+                         button.dataset.tableId = table.id;
                     } else {
                          button = createButton('Join Table', ['join-button', 'btn-primary']);
                          button.dataset.tableId = table.id;
@@ -297,6 +314,13 @@ const cardContent = document.createElement('div');
     const handleJoinClick = async (e) => {
         selectedTableId = parseInt(e.target.dataset.tableId);
         
+        if (!currentUserState.isLoggedIn) {
+            // User not logged in, open auth modal
+            openModal(authModal);
+            showAuthStep('signup');
+            return;
+        }
+        
         const { data: table } = await supabaseClient.from('tables').select('time, neighborhood').eq('id', selectedTableId).single();
         if (table) {
             modalTableDetails.innerHTML = `You're joining the <strong>${table.time}</strong> dinner in <strong>${table.neighborhood}</strong>.`;
@@ -322,12 +346,9 @@ const cardContent = document.createElement('div');
         selectedTableId = parseInt(e.target.dataset.tableId);
 
         if (!currentUserState.isLoggedIn) {
-            const { data: table } = await supabaseClient.from('tables').select('time, neighborhood').eq('id', selectedTableId).single();
-            if (table) {
-                modalTableDetails.innerHTML = `You're joining the waitlist for the <strong>${table.time}</strong> dinner in <strong>${table.neighborhood}</strong>.`;
-            }
-            joinModalTitle.textContent = "Join the Waitlist";
-            openModal(joinModal);
+            // User not logged in, open auth modal
+            openModal(authModal);
+            showAuthStep('signup');
             return;
         }
         
@@ -415,18 +436,20 @@ const cardContent = document.createElement('div');
     });
 
     loginButton.addEventListener('click', () => {
-        openModal(loginModal);
+        openModal(authModal);
+        showAuthStep('login');
     });
 
-    loginForm.addEventListener('submit', async (e) => {
+    // Auth login form handler
+    authLoginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        loginFormError.classList.add('hidden');
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
+        authLoginError.classList.add('hidden');
+        const email = document.getElementById('auth-login-email').value;
+        const password = document.getElementById('auth-login-password').value;
 
         if (!email || !password) {
-            loginFormError.textContent = "Please enter your email and password.";
-            loginFormError.classList.remove('hidden');
+            authLoginError.textContent = "Please enter your email and password.";
+            authLoginError.classList.remove('hidden');
             return;
         }
 
@@ -451,15 +474,73 @@ const cardContent = document.createElement('div');
                     phone: data.user.phoneNumber
                 };
                 
-                closeModal(loginModal);
+                closeModal(authModal);
                 await refreshData();
+                
+                // If user was trying to join a table, do it now
+                if (selectedTableId) {
+                    await joinTableAfterLogin(selectedTableId);
+                }
             } else {
-                loginFormError.textContent = "Login failed. Please try again.";
-                loginFormError.classList.remove('hidden');
+                authLoginError.textContent = "Login failed. Please try again.";
+                authLoginError.classList.remove('hidden');
             }
         } catch(error) {
-            loginFormError.textContent = `Error: ${error.message}`;
-            loginFormError.classList.remove('hidden');
+            authLoginError.textContent = `Error: ${error.message}`;
+            authLoginError.classList.remove('hidden');
+        }
+    });
+    
+    // Auth signup form handler
+    authSignupForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        authSignupError.classList.add('hidden');
+        authSignupSubmit.disabled = true;
+
+        // Validate all required fields
+        const email = document.getElementById('auth-signup-email').value;
+        const password = document.getElementById('auth-signup-password').value;
+        const phoneNumber = document.getElementById('auth-signup-phone').value;
+        const firstName = document.getElementById('auth-signup-firstname').value;
+        const ageRange = document.getElementById('auth-signup-age').value;
+        const referralSource = document.getElementById('auth-signup-referral').value;
+        const disclaimerChecked = document.getElementById('auth-signup-disclaimer').checked;
+        const marketingOptIn = document.getElementById('auth-signup-marketing').checked;
+
+        if (!email || !password || !phoneNumber || !firstName || !ageRange || !disclaimerChecked) {
+            authSignupError.textContent = "Please fill out all required fields and agree to the terms.";
+            authSignupError.classList.remove('hidden');
+            authSignupSubmit.disabled = false;
+            return;
+        }
+
+        try {
+            const formData = {
+                email: email,
+                password: password,
+                phoneNumber: phoneNumber,
+                firstName: firstName,
+                ageRange: ageRange,
+                referralSource: referralSource,
+                marketingOptIn: marketingOptIn,
+                tableId: selectedTableId
+            };
+
+            const { data, error } = await supabaseClient.functions.invoke('auth-signup', { body: formData });
+            if (error) throw error;
+            
+            // Store both user IDs
+            localStorage.setItem('supdinner_user_id', data.userId);
+            localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+            
+            // Show email verification modal
+            closeModal(authModal);
+            openModal(emailVerificationModal);
+            
+        } catch(error) {
+            authSignupError.textContent = `Error: ${error.message}`;
+            authSignupError.classList.remove('hidden');
+            authSignupSubmit.disabled = false;
         }
     });
 
@@ -489,6 +570,11 @@ const cardContent = document.createElement('div');
     disclaimerCheckbox.addEventListener('change', () => {
         // Always require disclaimer checkbox to be checked
         joinSubmitButton.disabled = !disclaimerCheckbox.checked;
+    });
+    
+    // Auth signup disclaimer checkbox handler
+    document.getElementById('auth-signup-disclaimer').addEventListener('change', () => {
+        authSignupSubmit.disabled = !document.getElementById('auth-signup-disclaimer').checked;
     });
 
     requestDisclaimerCheckbox.addEventListener('change', () => {
@@ -538,6 +624,16 @@ const cardContent = document.createElement('div');
         });
     }
     
+    function showAuthStep(step) {
+        if (step === 'login') {
+            authLoginStep.classList.remove('hidden');
+            authSignupStep.classList.add('hidden');
+        } else {
+            authLoginStep.classList.add('hidden');
+            authSignupStep.classList.remove('hidden');
+        }
+    }
+    
     function showSuccessStep() {
         successTitle.textContent = "You're In!";
         successMessage.textContent = "Welcome to the table! We'll send the final details to your phone soon. See you there!";
@@ -548,14 +644,48 @@ const cardContent = document.createElement('div');
     closeButton3.addEventListener('click', () => closeModal(joinModal));
     joinModal.addEventListener('click', (e) => { if (e.target === joinModal) closeModal(joinModal); });
 
-    closeLoginModal.addEventListener('click', () => closeModal(loginModal));
-    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeModal(loginModal); });
+    // Auth modal event listeners
+    closeAuthModal.addEventListener('click', () => closeModal(authModal));
+    authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(authModal); });
+    switchToSignup.addEventListener('click', () => showAuthStep('signup'));
+    switchToLogin.addEventListener('click', () => showAuthStep('login'));
+    
+    // Email verification modal
+    closeEmailVerification.addEventListener('click', () => closeModal(emailVerificationModal));
+    emailVerificationModal.addEventListener('click', (e) => { if (e.target === emailVerificationModal) closeModal(emailVerificationModal); });
 
     closeRequestModal1.addEventListener('click', () => closeModal(requestModal));
     closeRequestModal2.addEventListener('click', () => closeModal(requestModal));
     requestModal.addEventListener('click', (e) => { if (e.target === requestModal) closeModal(requestModal); });
 
 
+    // --- HELPER FUNCTIONS ---
+    
+    async function joinTableAfterLogin(tableId) {
+        try {
+            const { error } = await supabaseClient.functions.invoke('join-table', {
+                body: {
+                    tableId: tableId,
+                    userId: currentUserState.userId
+                }
+            });
+            
+            if (error) throw error;
+            
+            // Update user state
+            currentUserState.joinedTableId = tableId;
+            
+            // Refresh the display
+            await refreshData();
+            
+            // Show success message
+            alert('Successfully joined the table!');
+            
+        } catch (error) {
+            alert(`Error joining table: ${error.message}`);
+        }
+    }
+    
     // --- INITIALIZATION & REFRESH LOGIC ---
 
     async function refreshData() {
