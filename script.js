@@ -763,10 +763,27 @@ const cardContent = document.createElement('div');
             const { tableId, daysUntilDinner } = pendingTable;
             const collateral_cents = 1000; // $10.00
             
+            // First, ensure user has a Stripe customer ID
+            let stripeCustomerId = null;
+            try {
+                const { data: customerData, error: customerError } = await supabaseClient.functions.invoke('stripe-create-customer', {
+                    body: { userId: currentUserState.userId }
+                });
+                
+                if (customerError) throw customerError;
+                stripeCustomerId = customerData.stripeCustomerId;
+                
+            } catch (customerError) {
+                console.error('Error creating Stripe customer:', customerError);
+                throw new Error('Failed to set up payment account. Please try again.');
+            }
+            
             let paymentResult;
             
             if (daysUntilDinner > 7) {
                 // >7 days out: Create setup intent
+                console.log('Creating setup intent for table:', tableId, 'days until dinner:', daysUntilDinner);
+                
                 const { data, error } = await supabaseClient.functions.invoke('stripe-create-setup-intent', {
                     body: { 
                         userId: currentUserState.userId, 
@@ -775,7 +792,12 @@ const cardContent = document.createElement('div');
                     }
                 });
                 
-                if (error) throw error;
+                if (error) {
+                    console.error('Setup intent error:', error);
+                    throw error;
+                }
+                
+                console.log('Setup intent created:', data);
                 
                 // Confirm the setup intent
                 const { error: confirmError } = await stripe.confirmCardSetup(data.client_secret, {
@@ -790,6 +812,8 @@ const cardContent = document.createElement('div');
                 
             } else {
                 // ≤7 days out: Create hold
+                console.log('Creating payment hold for table:', tableId, 'days until dinner:', daysUntilDinner);
+                
                 const { data, error } = await supabaseClient.functions.invoke('stripe-create-hold', {
                     body: { 
                         userId: currentUserState.userId, 
@@ -798,7 +822,12 @@ const cardContent = document.createElement('div');
                     }
                 });
                 
-                if (error) throw error;
+                if (error) {
+                    console.error('Payment hold error:', error);
+                    throw error;
+                }
+                
+                console.log('Payment hold created:', data);
                 
                 // Confirm the payment intent
                 const { error: confirmError } = await stripe.confirmCardPayment(data.client_secret, {
