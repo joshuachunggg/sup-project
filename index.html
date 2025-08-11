@@ -35,6 +35,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://js.stripe.com/v3/"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-brand-bg text-brand-text">
@@ -216,9 +217,7 @@
                 <button type="button" id="resend-verification" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm font-sans">
                     Resend Verification Email
                 </button>
-                <button type="button" id="proceed-without-verification" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm font-sans">
-                    Continue Without Email Verification (Testing)
-                </button>
+
                 <button type="button" id="close-email-verification" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-brand-accent text-base font-medium text-white hover:bg-brand-accent-hover focus:outline-none sm:text-sm font-sans">
                     Got it!
                 </button>
@@ -331,6 +330,52 @@
                 <div class="bg-gray-50 px-6 py-4 rounded-b-xl -mx-6 -mb-6">
                     <button type="button" id="close-auth-modal" class="text-sm text-gray-600 hover:text-gray-800 font-sans">Cancel</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credit Card Form Modal -->
+    <div id="credit-card-modal" class="modal-backdrop fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md transform scale-95">
+            <div class="p-6">
+                <h2 class="text-2xl font-bold text-brand-text">Payment Required</h2>
+                <p class="text-gray-600 mt-1 font-sans">A $10 collateral hold is required to join this table.</p>
+                <p class="text-gray-500 mt-2 text-sm font-sans">This hold will be released when you attend the dinner.</p>
+            </div>
+            
+            <div class="px-6 pb-4">
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-blue-700 font-sans">
+                                <strong>No-show policy:</strong> If you don't attend, the $10 will be charged to cover the cost of your reserved spot.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="credit-card-form" class="space-y-4 font-sans">
+                    <div id="card-element" class="px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                        <!-- Stripe Elements will be inserted here -->
+                    </div>
+                    <div id="card-errors" class="text-red-600 text-sm hidden"></div>
+                    
+                    <div class="pt-2">
+                        <button type="submit" id="credit-card-submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-brand-button hover:bg-brand-button-hover font-heading disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="submit-text">Process Payment & Join Table</span>
+                            <span id="loading-text" class="hidden">Processing...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="bg-gray-50 px-6 py-4 rounded-b-xl">
+                <button type="button" id="close-credit-card-modal" class="text-sm text-gray-600 hover:text-gray-800 font-sans">Cancel</button>
             </div>
         </div>
     </div>

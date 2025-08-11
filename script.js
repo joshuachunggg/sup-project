@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubmx2bGNvZ3pvd3JvcGt3Yml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MTIyMTAsImV4cCI6MjA2OTQ4ODIxMH0.dCsyTAsAhcvSpeUMxWSyo_9praZC2wPDzmb3vCkHpPc';
     
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    // Initialize Stripe
+    const stripe = Stripe('pk_test_51RoP12090xmS47wUC7t9RjXOtqLIkZnKIphRsJaB5V2mH4MyWFT3WggYIEsr2EaDot78tYF3bZ5wVr1CC1Dc6xGy00rI5QkBOa');
+    let elements;
+    let cardElement;
 
     // --- GLOBAL STATE ---
     let currentUserState = {
@@ -59,6 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeEmailVerification = document.getElementById('close-email-verification');
     const resendVerification = document.getElementById('resend-verification');
     const resendStatus = document.getElementById('resend-status');
+    
+    // Credit card modal elements
+    const creditCardModal = document.getElementById('credit-card-modal');
+    const creditCardForm = document.getElementById('credit-card-form');
+    const cardElementContainer = document.getElementById('card-element');
+    const cardErrors = document.getElementById('card-errors');
+    const creditCardSubmit = document.getElementById('credit-card-submit');
+    const submitText = document.getElementById('submit-text');
+    const loadingText = document.getElementById('loading-text');
+    const closeCreditCardModal = document.getElementById('close-credit-card-modal');
 
     // Request Modal elements
     const requestTableBtn = document.getElementById('request-table-btn');
@@ -323,25 +338,45 @@ const cardContent = document.createElement('div');
             return;
         }
         
-        // User is logged in, immediately join the table
+        // User is logged in, show credit card form for collateral
         try {
-            const { error } = await supabaseClient.functions.invoke('join-table', {
-                body: { tableId: selectedTableId, userId: currentUserState.userId }
-            });
+            // Get table details to check dinner date
+            const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date').eq('id', selectedTableId).single();
+            if (tableError) throw tableError;
             
-            if (error) throw error;
+            // Calculate days until dinner
+            const dinnerDate = new Date(table.dinner_date);
+            const today = new Date();
+            const daysUntilDinner = Math.ceil((dinnerDate - today) / (1000 * 60 * 60 * 24));
             
-            // Update user state
-            currentUserState.joinedTableId = selectedTableId;
+            // Store table info for payment processing
+            localStorage.setItem('supdinner_pending_table', JSON.stringify({
+                tableId: selectedTableId,
+                daysUntilDinner: daysUntilDinner
+            }));
             
-            // Refresh the display
-            await refreshData();
+            // Show credit card form
+            openModal(creditCardModal);
             
-            // Show success message
-            alert('Successfully joined the table!');
+            // Initialize Stripe Elements if not already done
+            if (!elements) {
+                elements = stripe.elements();
+                cardElement = elements.create('card', {
+                    style: {
+                        base: {
+                            fontSize: '16px',
+                            color: '#424770',
+                            '::placeholder': {
+                                color: '#aab7c4',
+                            },
+                        },
+                    },
+                });
+                cardElement.mount(cardElementContainer);
+            }
             
         } catch (error) {
-            alert(`Error joining table: ${error.message}`);
+            alert(`Error preparing payment: ${error.message}`);
         }
     };
 
@@ -711,6 +746,104 @@ const cardContent = document.createElement('div');
         requestSubmitButton.disabled = !requestDisclaimerCheckbox.checked;
     });
 
+    // Credit card form handler
+    creditCardForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        cardErrors.classList.add('hidden');
+        creditCardSubmit.disabled = true;
+        submitText.classList.add('hidden');
+        loadingText.classList.remove('hidden');
+        
+        try {
+            const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+            if (!pendingTable) {
+                throw new Error('Table information not found. Please try again.');
+            }
+            
+            const { tableId, daysUntilDinner } = pendingTable;
+            const collateral_cents = 1000; // $10.00
+            
+            let paymentResult;
+            
+            if (daysUntilDinner > 7) {
+                // >7 days out: Create setup intent
+                const { data, error } = await supabaseClient.functions.invoke('stripe-create-setup-intent', {
+                    body: { 
+                        userId: currentUserState.userId, 
+                        tableId: tableId, 
+                        collateral_cents: collateral_cents 
+                    }
+                });
+                
+                if (error) throw error;
+                
+                // Confirm the setup intent
+                const { error: confirmError } = await stripe.confirmCardSetup(data.client_secret, {
+                    payment_method: {
+                        card: cardElement,
+                    }
+                });
+                
+                if (confirmError) throw confirmError;
+                
+                paymentResult = { success: true, setupIntentId: data.client_secret.split('_secret_')[0] };
+                
+            } else {
+                // ≤7 days out: Create hold
+                const { data, error } = await supabaseClient.functions.invoke('stripe-create-hold', {
+                    body: { 
+                        userId: currentUserState.userId, 
+                        tableId: tableId, 
+                        collateral_cents: collateral_cents 
+                    }
+                });
+                
+                if (error) throw error;
+                
+                // Confirm the payment intent
+                const { error: confirmError } = await stripe.confirmCardPayment(data.client_secret, {
+                    payment_method: {
+                        card: cardElement,
+                    }
+                });
+                
+                if (confirmError) throw confirmError;
+                
+                paymentResult = { success: true, paymentIntentId: data.client_secret.split('_secret_')[0] };
+            }
+            
+            if (paymentResult.success) {
+                // Now join the table
+                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                    body: { tableId: tableId, userId: currentUserState.userId }
+                });
+                
+                if (joinError) throw joinError;
+                
+                // Update user state
+                currentUserState.joinedTableId = tableId;
+                
+                // Clear pending table info
+                localStorage.removeItem('supdinner_pending_table');
+                
+                // Close modal and refresh
+                closeModal(creditCardModal);
+                await refreshData();
+                
+            } else {
+                throw new Error('Payment processing failed');
+            }
+            
+        } catch (error) {
+            console.error('Credit card error:', error);
+            cardErrors.textContent = `Error: ${error.message}`;
+            cardErrors.classList.remove('hidden');
+            creditCardSubmit.disabled = false;
+            submitText.classList.remove('hidden');
+            loadingText.classList.add('hidden');
+        }
+    });
+
 
     // --- MODAL CONTROLS ---
     
@@ -784,43 +917,7 @@ const cardContent = document.createElement('div');
     closeEmailVerification.addEventListener('click', () => closeModal(emailVerificationModal));
     emailVerificationModal.addEventListener('click', (e) => { if (e.target === emailVerificationModal) closeModal(emailVerificationModal); });
     
-    // Proceed without email verification (for testing)
-    document.getElementById('proceed-without-verification').addEventListener('click', async () => {
-        try {
-            const profileData = JSON.parse(localStorage.getItem('supdinner_profile_data'));
-            const tempAuthUserId = localStorage.getItem('supdinner_temp_auth_user_id');
-            
-            if (!profileData || !tempAuthUserId) {
-                alert('Profile data not found. Please try signing up again.');
-                return;
-            }
-            
-            // Create the user profile using the create-user-profile function
-            const { data, error } = await supabaseClient.functions.invoke('create-user-profile', { 
-                body: profileData 
-            });
-            
-            if (error) throw error;
-            
-            // Store the user IDs
-            localStorage.setItem('supdinner_user_id', data.userId);
-            localStorage.setItem('supdinner_auth_user_id', data.authUserId);
-            
-            // Clear temporary data
-            localStorage.removeItem('supdinner_temp_auth_user_id');
-            localStorage.removeItem('supdinner_profile_data');
-            
-            // Close modal and refresh
-            closeModal(emailVerificationModal);
-            await refreshData();
-            
-            // Show success message
-            alert('Account created successfully! You can now log in.');
-            
-        } catch (error) {
-            alert(`Error creating profile: ${error.message}`);
-        }
-    });
+
     
     // Resend verification email
     resendVerification.addEventListener('click', async () => {
@@ -858,6 +955,10 @@ const cardContent = document.createElement('div');
     closeRequestModal1.addEventListener('click', () => closeModal(requestModal));
     closeRequestModal2.addEventListener('click', () => closeModal(requestModal));
     requestModal.addEventListener('click', (e) => { if (e.target === requestModal) closeModal(requestModal); });
+    
+    // Credit card modal close handlers
+    closeCreditCardModal.addEventListener('click', () => closeModal(creditCardModal));
+    creditCardModal.addEventListener('click', (e) => { if (e.target === creditCardModal) closeModal(creditCardModal); });
 
 
     // --- HELPER FUNCTIONS ---
