@@ -35,8 +35,10 @@ git push -u origin main
 2. Click "Settings" tab
 3. Scroll down to "Pages" section (left sidebar)
 4. Under "Source", select "Deploy from a branch"
-5. Select "gh-pages" branch
+5. Select "main" branch (since frontend files are now in root)
 6. Click "Save"
+
+**Note**: We've simplified the deployment by placing the frontend files in the root directory. This means GitHub Pages can serve them directly without needing the gh-pages branch or GitHub Actions workflow.
 
 ## Step 4: Verify Supabase Configuration
 
