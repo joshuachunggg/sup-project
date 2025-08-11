@@ -34,14 +34,11 @@ serve(async (req) => {
       Deno.env.get("SERVICE_ROLE_KEY")!
     );
 
-    // 1. Check if a user with this email already exists
-    const { data: existingEmailUser } = await supabaseAdmin
-      .from("users")
-      .select("id, auth_user_id")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (existingEmailUser && existingEmailUser.auth_user_id) {
+    // 1. Check if a user with this email already exists in Supabase Auth
+    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
+    const emailExists = existingAuthUser.users.some(user => user.email === email);
+    
+    if (emailExists) {
       throw new Error("An account with this email already exists. Please log in instead.");
     }
 
@@ -149,7 +146,9 @@ serve(async (req) => {
       success: true, 
       userId: userId,
       authUserId: authUser.user.id,
-      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Account created successfully!"
+      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Account created successfully!",
+      emailSent: true,
+      note: "Please check your email for a verification link. If you don't see it, check your spam folder."
     }), {
       headers: { 
         "Content-Type": "application/json", 

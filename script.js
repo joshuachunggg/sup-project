@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Email verification modal
     const emailVerificationModal = document.getElementById('email-verification-modal');
     const closeEmailVerification = document.getElementById('close-email-verification');
+    const resendVerification = document.getElementById('resend-verification');
+    const resendStatus = document.getElementById('resend-status');
 
     // Request Modal elements
     const requestTableBtn = document.getElementById('request-table-btn');
@@ -529,9 +531,22 @@ const cardContent = document.createElement('div');
             const { data, error } = await supabaseClient.functions.invoke('auth-signup', { body: formData });
             if (error) throw error;
             
-            // Store both user IDs
-            localStorage.setItem('supdinner_user_id', data.userId);
-            localStorage.setItem('supdinner_auth_user_id', data.authUserId);
+            // Store email for resend functionality
+            localStorage.setItem('supdinner_signup_email', email);
+            
+            // Clear any existing user state since they're not fully authenticated yet
+            localStorage.removeItem('supdinner_user_id');
+            localStorage.removeItem('supdinner_auth_user_id');
+            
+            // Reset user state
+            currentUserState = { 
+                isLoggedIn: false, 
+                userId: null, 
+                joinedTableId: null, 
+                waitlistedTableIds: [], 
+                isSuspended: false, 
+                suspensionEndDate: null 
+            };
             
             // Show email verification modal
             closeModal(authModal);
@@ -653,6 +668,39 @@ const cardContent = document.createElement('div');
     // Email verification modal
     closeEmailVerification.addEventListener('click', () => closeModal(emailVerificationModal));
     emailVerificationModal.addEventListener('click', (e) => { if (e.target === emailVerificationModal) closeModal(emailVerificationModal); });
+    
+    // Resend verification email
+    resendVerification.addEventListener('click', async () => {
+        const email = localStorage.getItem('supdinner_signup_email');
+        if (!email) {
+            resendStatus.textContent = "Error: No email found. Please try signing up again.";
+            resendStatus.classList.remove('hidden');
+            return;
+        }
+        
+        try {
+            resendVerification.disabled = true;
+            resendVerification.textContent = "Sending...";
+            
+            const { data, error } = await supabaseClient.functions.invoke('resend-verification', { 
+                body: { email: email } 
+            });
+            
+            if (error) throw error;
+            
+            resendStatus.textContent = "Verification email sent! Please check your inbox and spam folder.";
+            resendStatus.classList.remove('hidden');
+            resendStatus.className = 'mt-4 text-sm text-green-600';
+            
+        } catch (error) {
+            resendStatus.textContent = `Error: ${error.message}`;
+            resendStatus.classList.remove('hidden');
+            resendStatus.className = 'mt-4 text-sm text-red-600';
+        } finally {
+            resendVerification.disabled = false;
+            resendVerification.textContent = "Resend Verification Email";
+        }
+    });
 
     closeRequestModal1.addEventListener('click', () => closeModal(requestModal));
     closeRequestModal2.addEventListener('click', () => closeModal(requestModal));
@@ -690,8 +738,9 @@ const cardContent = document.createElement('div');
 
     async function refreshData() {
         const localUserId = localStorage.getItem('supdinner_user_id');
+        const localAuthUserId = localStorage.getItem('supdinner_auth_user_id');
 
-        if (localUserId) {
+        if (localUserId && localAuthUserId) {
             loginButton.classList.add('hidden');
             const { data: profile } = await supabaseClient.from('users').select('first_name, is_suspended, suspension_end_date, phone_number').eq('id', localUserId).single();
             const { data: signup } = await supabaseClient.from('signups').select('table_id').eq('user_id', localUserId).maybeSingle();
@@ -713,11 +762,17 @@ const cardContent = document.createElement('div');
                 document.getElementById('request-name').value = profile.first_name;
                 document.getElementById('request-phone').value = profile.phone_number;
             } else {
+                // Clear invalid user state
                 localStorage.removeItem('supdinner_user_id');
+                localStorage.removeItem('supdinner_auth_user_id');
                 currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
                 userStatusDiv.classList.add('hidden');
+                loginButton.classList.remove('hidden');
             }
         } else {
+            // Clear any partial user state
+            localStorage.removeItem('supdinner_user_id');
+            localStorage.removeItem('supdinner_auth_user_id');
             loginButton.classList.remove('hidden');
             currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
             userStatusDiv.classList.add('hidden');

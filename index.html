@@ -206,15 +206,21 @@
         <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md transform scale-95 text-center p-8">
             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
                 <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 00-2 2v10a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
             </div>
             <h2 class="text-2xl font-bold text-brand-text mt-4">Check Your Email!</h2>
             <p class="text-gray-600 mt-2 font-sans">We've sent you a confirmation link. Please check your email and click the link to verify your account.</p>
             <p class="text-gray-500 mt-4 text-sm font-sans">Once verified, come back here and log in to join your table!</p>
-            <button type="button" id="close-email-verification" class="mt-6 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-brand-accent text-base font-medium text-white hover:bg-brand-accent-hover focus:outline-none sm:w-auto sm:text-sm font-sans">
-                Got it!
-            </button>
+            <div class="mt-6 space-y-3">
+                <button type="button" id="resend-verification" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:text-sm font-sans">
+                    Resend Verification Email
+                </button>
+                <button type="button" id="close-email-verification" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-brand-accent text-base font-medium text-white hover:bg-brand-accent-hover focus:outline-none sm:text-sm font-sans">
+                    Got it!
+                </button>
+            </div>
+            <div id="resend-status" class="mt-4 text-sm hidden"></div>
         </div>
     </div>
         </div>
