@@ -508,9 +508,19 @@ const cardContent = document.createElement('div');
                 profileData = createProfileData;
             }
             
+            // Validate profile data before proceeding
+            if (!profileData.userId || !profileData.authUserId) {
+                throw new Error('Invalid profile data received. Please try again.');
+            }
+            
             // Store user IDs in localStorage
             localStorage.setItem('supdinner_user_id', profileData.userId);
             localStorage.setItem('supdinner_auth_user_id', profileData.authUserId);
+            
+            console.log('Stored user IDs:', {
+                userId: profileData.userId,
+                authUserId: profileData.authUserId
+            });
             
             // Update user state
             currentUserState = {
@@ -525,7 +535,11 @@ const cardContent = document.createElement('div');
             };
             
             closeModal(authModal);
-            await refreshData();
+            
+            // Small delay to ensure localStorage is set before refreshData
+            setTimeout(async () => {
+                await refreshData();
+            }, 100);
             
             // If user was trying to join a table, do it now
             if (selectedTableId) {
@@ -840,29 +854,52 @@ const cardContent = document.createElement('div');
         const localUserId = localStorage.getItem('supdinner_user_id');
         const localAuthUserId = localStorage.getItem('supdinner_auth_user_id');
 
-        if (localUserId && localAuthUserId) {
-            loginButton.classList.add('hidden');
-            const { data: profile } = await supabaseClient.from('users').select('first_name, is_suspended, suspension_end_date, phone_number').eq('id', localUserId).single();
-            const { data: signup } = await supabaseClient.from('signups').select('table_id').eq('user_id', localUserId).maybeSingle();
-            const { data: waitlists } = await supabaseClient.from('waitlists').select('table_id').eq('user_id', localUserId);
+        console.log('refreshData - localStorage values:', { localUserId, localAuthUserId });
 
-            if (profile) {
-                currentUserState = {
-                    isLoggedIn: true,
-                    userId: localUserId,
-                    joinedTableId: signup ? signup.table_id : null,
-                    waitlistedTableIds: waitlists ? waitlists.map(w => w.table_id) : [],
-                    isSuspended: profile.is_suspended,
-                    suspensionEndDate: profile.suspension_end_date,
-                    name: profile.first_name,
-                    phone: profile.phone_number
-                };
-                userGreetingSpan.textContent = `Welcome, ${profile.first_name}!`;
-                userStatusDiv.classList.remove('hidden');
-                document.getElementById('request-name').value = profile.first_name;
-                document.getElementById('request-phone').value = profile.phone_number;
-            } else {
-                // Clear invalid user state
+        if (localUserId && localAuthUserId && localUserId !== 'undefined' && localAuthUserId !== 'undefined') {
+            try {
+                loginButton.classList.add('hidden');
+                
+                // Validate UUID format before querying
+                if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(localUserId)) {
+                    throw new Error('Invalid user ID format');
+                }
+                
+                const { data: profile, error: profileError } = await supabaseClient.from('users').select('first_name, is_suspended, suspension_end_date, phone_number').eq('id', localUserId).single();
+                if (profileError) throw profileError;
+                
+                const { data: signup, error: signupError } = await supabaseClient.from('signups').select('table_id').eq('user_id', localUserId).maybeSingle();
+                if (signupError) throw signupError;
+                
+                const { data: waitlists, error: waitlistsError } = await supabaseClient.from('waitlists').select('table_id').eq('user_id', localUserId);
+                if (waitlistsError) throw waitlistsError;
+
+                if (profile) {
+                    currentUserState = {
+                        isLoggedIn: true,
+                        userId: localUserId,
+                        joinedTableId: signup ? signup.table_id : null,
+                        waitlistedTableIds: waitlists ? waitlists.map(w => w.table_id) : [],
+                        isSuspended: profile.is_suspended,
+                        suspensionEndDate: profile.suspension_end_date,
+                        name: profile.first_name,
+                        phone: profile.phone_number
+                    };
+                    userGreetingSpan.textContent = `Welcome, ${profile.first_name}!`;
+                    userStatusDiv.classList.remove('hidden');
+                    document.getElementById('request-name').value = profile.first_name;
+                    document.getElementById('request-phone').value = profile.phone_number;
+                } else {
+                    // Clear invalid user state
+                    localStorage.removeItem('supdinner_user_id');
+                    localStorage.removeItem('supdinner_auth_user_id');
+                    currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
+                    userStatusDiv.classList.add('hidden');
+                    loginButton.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error in refreshData:', error);
+                // Clear invalid user state on error
                 localStorage.removeItem('supdinner_user_id');
                 localStorage.removeItem('supdinner_auth_user_id');
                 currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
