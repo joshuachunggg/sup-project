@@ -930,6 +930,8 @@ const cardContent = document.createElement('div');
                 authLoginError.classList.add('hidden');
                 authSignupError.classList.add('hidden');
                 // Don't call refreshData() for auth modal - it's handled explicitly in login flow
+            } else if (modal === creditCardModal) {
+                // Don't call refreshData() for credit card modal - it's handled explicitly after table join
             } else {
                 refreshData();
             }
