@@ -783,7 +783,7 @@ const cardContent = document.createElement('div');
             }
             
             const { tableId, daysUntilDinner } = pendingTable;
-            const collateral_cents = 1000; // $10.00
+            const collateral_cents = 2500; // $25.00
             
             // First, ensure user has a Stripe customer ID
             let stripeCustomerId = null;
