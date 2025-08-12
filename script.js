@@ -578,29 +578,44 @@ const cardContent = document.createElement('div');
             console.log('Final profile data before validation:', profileData);
             
             // Validate profile data before proceeding
-            // Note: create-user-profile returns 'userId' and 'authUserId', not 'id' and 'auth_user_id'
-            if (!profileData.userId || !profileData.authUserId) {
+            // Handle both response structures:
+            // 1. create-user-profile returns: {userId: "...", authUserId: "..."}
+            // 2. get-user-by-auth-id returns: {user: {id: "...", auth_user_id: "..."}}
+            let userId, authUserId;
+            
+            if (profileData.userId && profileData.authUserId) {
+                // Response from create-user-profile
+                userId = profileData.userId;
+                authUserId = profileData.authUserId;
+            } else if (profileData.user && profileData.user.id && profileData.user.auth_user_id) {
+                // Response from get-user-by-auth-id
+                userId = profileData.user.id;
+                authUserId = profileData.user.auth_user_id;
+            } else {
                 console.error('Profile data validation failed:', {
                     hasUserId: !!profileData.userId,
                     hasAuthUserId: !!profileData.authUserId,
+                    hasUserObject: !!profileData.user,
+                    hasUserIdInUser: !!(profileData.user?.id),
+                    hasAuthUserIdInUser: !!(profileData.user?.auth_user_id),
                     profileData: profileData
                 });
                 throw new Error('Invalid profile data received. Please try again.');
             }
             
             // Store user IDs in localStorage
-            localStorage.setItem('supdinner_user_id', profileData.userId);
-            localStorage.setItem('supdinner_auth_user_id', profileData.authUserId);
+            localStorage.setItem('supdinner_user_id', userId);
+            localStorage.setItem('supdinner_auth_user_id', authUserId);
             
             console.log('Stored user IDs:', {
-                userId: profileData.id,
-                authUserId: profileData.auth_user_id
+                userId: userId,
+                authUserId: authUserId
             });
             
             // Update user state
             currentUserState = {
                 isLoggedIn: true,
-                userId: profileData.userId,
+                userId: userId,
                 joinedTableId: profileData.user?.joinedTableId || null,
                 waitlistedTableIds: profileData.user?.waitlistedTableIds || [],
                 isSuspended: profileData.user?.is_suspended || false,
