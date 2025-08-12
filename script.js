@@ -529,7 +529,7 @@ const cardContent = document.createElement('div');
                 console.log('Profile response:', profileResponse);
                 
                 if (profileResponse && profileResponse.success && profileResponse.user) {
-                    profileData = profileResponse.user; // Extract the user object
+                    profileData = profileResponse; // Keep the full response for validation
                 } else {
                     console.log('Profile not found or invalid response');
                 }
