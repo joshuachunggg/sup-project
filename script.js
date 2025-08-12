@@ -328,6 +328,7 @@ const cardContent = document.createElement('div');
                     paymentRequestElement.mount('#payment-request-button');
                     
                     // Handle payment request completion - Apple Pay uses 'payment' event
+                    console.log('🔧 Attaching payment event handler...');
                     paymentRequest.on('payment', async (event) => {
                         console.log('🎯 APPLE PAY PAYMENT RECEIVED:', event);
                         console.log('Payment details:', event);
@@ -344,10 +345,12 @@ const cardContent = document.createElement('div');
                     });
                     
                     // Add error handling for Apple Pay
+                    console.log('🔧 Attaching cancel event handler...');
                     paymentRequest.on('cancel', (event) => {
                         console.log('🚫 Apple Pay payment cancelled:', event);
                     });
                     
+                    console.log('🔧 Attaching error event handler...');
                     paymentRequest.on('error', (event) => {
                         console.error('❌ Apple Pay error:', event);
                         const cardErrors = document.getElementById('card-errors');
@@ -356,6 +359,7 @@ const cardContent = document.createElement('div');
                     });
                     
                     // Google Pay and Link use 'payment_method' event
+                    console.log('🔧 Attaching payment_method event handler...');
                     paymentRequest.on('payment_method', async (event) => {
                         console.log('🔗 Payment method received (Google Pay/Link):', event);
                         console.log('Payment method details:', event.paymentMethod);
@@ -373,7 +377,9 @@ const cardContent = document.createElement('div');
                     
                     // Debug: Log all available events
                     console.log('🔍 Available payment request events:', Object.keys(paymentRequest));
-                    console.log('🔍 Event names:', Object.keys(paymentRequest).filter(key => key.startsWith('on')));
+                    const eventNames = Object.keys(paymentRequest).filter(key => key.startsWith('on'));
+                    console.log('🔍 Event names:', eventNames);
+                    console.log('🔍 Event names (expanded):', eventNames.map(name => name.substring(2))); // Remove 'on' prefix
                     console.log('🔍 Payment request object:', paymentRequest);
                     
                     console.log('✅ Payment Request Button initialized successfully');
