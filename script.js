@@ -299,8 +299,11 @@ const cardContent = document.createElement('div');
                 requestPayerEmail: true,
             });
             
+            console.log('Payment Request created:', paymentRequest);
+            
             // Check if payment request is supported
             paymentRequest.canMakePayment().then(function(result) {
+                console.log('Payment Request canMakePayment result:', result);
                 if (result) {
                     console.log('Payment Request supported:', result);
                     
