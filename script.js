@@ -335,6 +335,18 @@ const cardContent = document.createElement('div');
                         }
                     });
                     
+                    // Add error handling for Apple Pay
+                    paymentRequest.on('cancel', (event) => {
+                        console.log('Apple Pay payment cancelled:', event);
+                    });
+                    
+                    paymentRequest.on('error', (event) => {
+                        console.error('Apple Pay error:', event);
+                        const cardErrors = document.getElementById('card-errors');
+                        cardErrors.textContent = `Apple Pay error: ${event.error.message}`;
+                        cardErrors.classList.remove('hidden');
+                    });
+                    
                     // Also listen for payment_method as backup
                     paymentRequest.on('payment_method', async (event) => {
                         console.log('Payment request payment method received (backup):', event);
