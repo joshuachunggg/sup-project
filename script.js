@@ -1154,17 +1154,21 @@ const cardContent = document.createElement('div');
                      
                      if (holdError) throw holdError;
                      
-                     // Convert Apple Pay token to payment method data for Stripe
-                     const paymentMethodData = {
+                     // For confirmCardPayment, we need to create a payment method first
+                     console.log('🔧 Creating payment method from Apple Pay token...');
+                     const { paymentMethod, error: pmError } = await stripe.createPaymentMethod({
                          type: 'card',
                          card: {
                              token: token.id
                          }
-                     };
+                     });
                      
-                     // Confirm the payment intent with the Apple Pay token
+                     if (pmError) throw pmError;
+                     console.log('✅ Payment method created:', paymentMethod.id);
+                     
+                     // Confirm the payment intent with the payment method
                      const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(holdData.client_secret, {
-                         payment_method_data: paymentMethodData
+                         payment_method: paymentMethod.id
                      });
                      
                      if (confirmError) throw confirmError;
