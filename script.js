@@ -281,62 +281,49 @@ const cardContent = document.createElement('div');
         return button;
     }
     
-    // Initialize Apple Pay if available
+    // Initialize Payment Request Button (Apple Pay/Google Pay) if available
     function initializeApplePay() {
-        console.log('=== Apple Pay Initialization Started ===');
-        const applePayButton = document.getElementById('apple-pay-button');
-        if (!applePayButton) {
-            console.log('Apple Pay button element not found');
-            return;
-        }
+        const paymentRequestButton = document.getElementById('payment-request-button');
+        if (!paymentRequestButton) return;
         
-        console.log('Apple Pay button element found:', applePayButton);
-        console.log('window.ApplePaySession exists:', !!window.ApplePaySession);
-        console.log('ApplePaySession.canMakePayments():', ApplePaySession?.canMakePayments());
-        
-        // Check if Apple Pay is available
-        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
-            try {
-                console.log('Creating Apple Pay element with Stripe...');
-                // Create Apple Pay button using Stripe Elements
-                const applePayElement = elements.create('applePay', {
-                    style: {
-                        type: 'plain',
-                        theme: 'light'
-                    }
-                });
+        try {
+            // Create payment request button using Stripe Elements
+            const paymentRequestElement = elements.create('paymentRequestButton', {
+                paymentRequest: {
+                    country: 'US',
+                    currency: 'usd',
+                    total: {
+                        label: 'Table Collateral',
+                        amount: 2500, // $25.00 in cents
+                    },
+                    requestPayerName: true,
+                    requestPayerEmail: true,
+                },
+            });
+            
+            // Mount the payment request button
+            paymentRequestElement.mount('#payment-request-button');
+            
+            // Handle payment request completion
+            paymentRequestElement.on('payment_method', async (event) => {
+                console.log('Payment request payment method received:', event);
                 
-                console.log('Apple Pay element created:', applePayElement);
-                console.log('Mounting Apple Pay element to #apple-pay-button...');
-                
-                // Mount the Apple Pay button
-                applePayElement.mount('#apple-pay-button');
-                
-                // Handle Apple Pay payment
-                applePayElement.on('payment_method', async (event) => {
-                    console.log('Apple Pay payment method received:', event);
-                    
-                    try {
-                        // Process the Apple Pay payment the same way as credit card
-                        await processApplePayPayment(event.paymentMethod);
-                    } catch (error) {
-                        console.error('Apple Pay payment failed:', error);
-                        const cardErrors = document.getElementById('card-errors');
-                        cardErrors.textContent = `Apple Pay payment failed: ${error.message}`;
-                        cardErrors.classList.remove('hidden');
-                    }
-                });
-                
-                console.log('Apple Pay initialized successfully');
-            } catch (error) {
-                console.error('Failed to initialize Apple Pay:', error);
-                // Hide Apple Pay button if initialization fails
-                applePayButton.style.display = 'none';
-            }
-        } else {
-            // Apple Pay not available, hide the button
-            applePayButton.style.display = 'none';
-            console.log('Apple Pay not available on this device');
+                try {
+                    // Process the payment the same way as credit card
+                    await processApplePayPayment(event.paymentMethod);
+                } catch (error) {
+                    console.error('Payment request payment failed:', error);
+                    const cardErrors = document.getElementById('card-errors');
+                    cardErrors.textContent = `Payment failed: ${error.message}`;
+                    cardErrors.classList.remove('hidden');
+                }
+            });
+            
+            console.log('Payment Request Button initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize Payment Request Button:', error);
+            // Hide button if initialization fails
+            paymentRequestButton.style.display = 'none';
         }
     }
     
