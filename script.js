@@ -384,7 +384,8 @@ const cardContent = document.createElement('div');
                         try {
                             paymentRequest.on(eventName, (event) => {
                                 console.log(`🎯 Event '${eventName}' fired:`, event);
-                                if (eventName === 'payment' || eventName === 'payment_method') {
+                                if (eventName === 'payment' || eventName === 'payment_method' || eventName === 'token') {
+                                    console.log(`🍎 Processing ${eventName} event for Apple Pay...`);
                                     handleApplePaySuccess(event);
                                 }
                             });
@@ -995,12 +996,16 @@ const cardContent = document.createElement('div');
              try {
                  console.log('🎯 Apple Pay event received:', event);
                  console.log('Event type:', event.type || 'unknown');
+                 console.log('Event method:', event.methodName || 'unknown');
                  console.log('Event details:', event);
                  
-                 // Check if this is a token event
-                 if (event.token && event.token.tokenization_method === 'apple_pay') {
+                 // Check if this is a token event (from Payment Request API)
+                 if (event.token && event.token.id) {
                      console.log('🍎 Apple Pay token detected:', event.token);
                      console.log('Processing Apple Pay token for table/waitlist join...');
+                 } else if (event.tokenization_method === 'apple_pay') {
+                     console.log('🍎 Apple Pay tokenization detected:', event);
+                     console.log('Processing Apple Pay tokenization for table/waitlist join...');
                  } else {
                      console.log('Apple Pay payment successful, processing table/waitlist join...');
                  }
