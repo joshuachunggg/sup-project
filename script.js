@@ -921,8 +921,10 @@ const cardContent = document.createElement('div');
             if (modal === authModal) {
                 authLoginError.classList.add('hidden');
                 authSignupError.classList.add('hidden');
+                // Don't call refreshData() for auth modal - it's handled explicitly in login flow
+            } else {
+                refreshData();
             }
-            refreshData();
         }, 300);
     }
 
