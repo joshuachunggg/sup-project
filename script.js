@@ -1084,13 +1084,14 @@ const cardContent = document.createElement('div');
                  // Get table details to determine payment strategy
                  const { data: tableData, error: tableError } = await supabaseClient
                      .from('tables')
-                     .select('dinner_date, dinner_time')
+                     .select('dinner_date')
                      .eq('id', tableId)
                      .single();
                  
                  if (tableError) throw tableError;
                  
-                 const dinnerDate = new Date(tableData.dinner_date + 'T' + tableData.dinner_time);
+                 // dinner_date is already a timestamptz, so we can use it directly
+                 const dinnerDate = new Date(tableData.dinner_date);
                  const now = new Date();
                  const daysUntilDinner = Math.ceil((dinnerDate - now) / (1000 * 60 * 60 * 24));
                  
