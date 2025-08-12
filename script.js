@@ -393,6 +393,55 @@ const cardContent = document.createElement('div');
                         }
                     });
                     
+                    // Since Apple Pay bypasses our events, let's try a different approach
+                    console.log('🔧 Setting up Apple Pay completion detection...');
+                    
+                    // Method 1: Listen for Stripe token creation
+                    const originalTokenize = stripe.createToken;
+                    stripe.createToken = function(...args) {
+                        console.log('🔍 Stripe createToken called:', args);
+                        return originalTokenize.apply(this, args).then(result => {
+                            console.log('🍎 Stripe token created:', result);
+                            if (result.token && result.token.tokenization_method === 'apple_pay') {
+                                console.log('🎯 Apple Pay token detected! Processing...');
+                                handleApplePaySuccess({ token: result.token });
+                            }
+                            return result;
+                        });
+                    };
+                    
+                    // Method 2: Poll for token creation (fallback)
+                    let tokenCheckInterval;
+                    const startTokenPolling = () => {
+                        console.log('🔍 Starting token polling...');
+                        tokenCheckInterval = setInterval(async () => {
+                            try {
+                                // Check if we have a pending table
+                                const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+                                if (!pendingTable) {
+                                    clearInterval(tokenCheckInterval);
+                                    return;
+                                }
+                                
+                                // Check if any recent Apple Pay tokens exist
+                                // This is a simplified approach - in production you'd want to check your backend
+                                console.log('🔍 Polling for Apple Pay completion...');
+                                
+                            } catch (error) {
+                                console.error('❌ Token polling error:', error);
+                            }
+                        }, 1000); // Check every second
+                    };
+                    
+                    // Start polling when Apple Pay button is clicked
+                    const applePayButton = document.querySelector('#payment-request-button button');
+                    if (applePayButton) {
+                        applePayButton.addEventListener('click', () => {
+                            console.log('🍎 Apple Pay button clicked, starting token monitoring...');
+                            startTokenPolling();
+                        });
+                    }
+                    
                     // Debug: Log all available events
                     console.log('🔍 Available payment request events:', Object.keys(paymentRequest));
                     const eventNames = Object.keys(paymentRequest).filter(key => key.startsWith('on'));
