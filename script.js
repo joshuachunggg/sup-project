@@ -281,6 +281,53 @@ const cardContent = document.createElement('div');
         return button;
     }
     
+    // Initialize Apple Pay if available
+    function initializeApplePay() {
+        const applePayButton = document.getElementById('apple-pay-button');
+        if (!applePayButton) return;
+        
+        // Check if Apple Pay is available
+        if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
+            try {
+                // Create Apple Pay button using Stripe Elements
+                const applePayElement = elements.create('applePay', {
+                    style: {
+                        type: 'plain',
+                        theme: 'light'
+                    }
+                });
+                
+                // Mount the Apple Pay button
+                applePayElement.mount('#apple-pay-button');
+                
+                // Handle Apple Pay payment
+                applePayElement.on('payment_method', async (event) => {
+                    console.log('Apple Pay payment method received:', event);
+                    
+                    try {
+                        // Process the Apple Pay payment the same way as credit card
+                        await processApplePayPayment(event.paymentMethod);
+                    } catch (error) {
+                        console.error('Apple Pay payment failed:', error);
+                        const cardErrors = document.getElementById('card-errors');
+                        cardErrors.textContent = `Apple Pay payment failed: ${error.message}`;
+                        cardErrors.classList.remove('hidden');
+                    }
+                });
+                
+                console.log('Apple Pay initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Apple Pay:', error);
+                // Hide Apple Pay button if initialization fails
+                applePayButton.style.display = 'none';
+            }
+        } else {
+            // Apple Pay not available, hide the button
+            applePayButton.style.display = 'none';
+            console.log('Apple Pay not available on this device');
+        }
+    }
+    
     const renderTabs = (dates) => {
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -378,6 +425,9 @@ const cardContent = document.createElement('div');
                     },
                 });
                 cardElement.mount(cardElementContainer);
+                
+                // Initialize Apple Pay if available
+                initializeApplePay();
             }
             
         } catch (error) {
@@ -767,6 +817,125 @@ const cardContent = document.createElement('div');
     requestDisclaimerCheckbox.addEventListener('change', () => {
         requestSubmitButton.disabled = !requestDisclaimerCheckbox.checked;
     });
+
+    // Process Apple Pay payment
+    async function processApplePayPayment(paymentMethod) {
+        try {
+            const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+            if (!pendingTable) {
+                throw new Error('Table information not found. Please try again.');
+            }
+            
+            const { tableId, daysUntilDinner } = pendingTable;
+            const collateral_cents = 2500; // $25.00
+            
+            // First, ensure user has a Stripe customer ID
+            let stripeCustomerId = null;
+            try {
+                const { data: customerData, error: customerError } = await supabaseClient.functions.invoke('stripe-create-customer', {
+                    body: { userId: currentUserState.userId }
+                });
+                
+                if (customerError) throw customerError;
+                stripeCustomerId = customerData.stripeCustomerId;
+                
+            } catch (customerError) {
+                console.error('Error creating Stripe customer:', customerError);
+                throw new Error('Failed to set up payment account. Please try again.');
+            }
+            
+            let paymentResult;
+            
+            if (daysUntilDinner > 7) {
+                // >7 days out: Create setup intent
+                console.log('Creating Apple Pay setup intent for table:', tableId, 'days until dinner:', daysUntilDinner);
+                
+                const { data, error } = await supabaseClient.functions.invoke('stripe-create-setup-intent', {
+                    body: { 
+                        userId: currentUserState.userId, 
+                        tableId: tableId, 
+                        collateral_cents: collateral_cents 
+                    }
+                });
+                
+                if (error) {
+                    console.error('Setup intent error:', error);
+                    throw error;
+                }
+                
+                console.log('Apple Pay setup intent created:', data);
+                
+                // Confirm the setup intent with Apple Pay payment method
+                const { error: confirmError } = await stripe.confirmCardSetup(data.client_secret, {
+                    payment_method: paymentMethod.id
+                });
+                
+                if (confirmError) throw confirmError;
+                
+                paymentResult = { success: true, setupIntentId: data.client_secret.split('_secret_')[0] };
+                
+            } else {
+                // ≤7 days out: Create hold
+                console.log('Creating Apple Pay payment hold for table:', tableId, 'days until dinner:', daysUntilDinner);
+                
+                const { data, error } = await supabaseClient.functions.invoke('stripe-create-hold', {
+                    body: { 
+                        userId: currentUserState.userId, 
+                        tableId: tableId, 
+                        collateral_cents: collateral_cents 
+                    }
+                });
+                
+                if (error) {
+                    console.error('Payment hold error:', error);
+                    throw error;
+                }
+                
+                console.log('Apple Pay payment hold created:', data);
+                
+                // Confirm the payment intent with Apple Pay payment method
+                const { error: confirmError } = await stripe.confirmCardPayment(data.client_secret, {
+                    payment_method: paymentMethod.id
+                });
+                
+                if (confirmError) throw confirmError;
+                
+                paymentResult = { success: true, paymentIntentId: data.client_secret.split('_secret_')[0] };
+            }
+            
+            if (paymentResult.success) {
+                // Now join the table
+                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                    body: { tableId: tableId, userId: currentUserState.userId }
+                });
+                
+                if (joinError) throw joinError;
+                
+                // Update current user state
+                currentUserState.joinedTableId = tableId;
+                
+                // Clear pending table info
+                localStorage.removeItem('supdinner_pending_table');
+                
+                // Close modal and refresh
+                closeModal(creditCardModal);
+                
+                // Force a re-render of the current day's tables to show updated state
+                if (activeDate) {
+                    console.log('Re-rendering tables for current date after Apple Pay join:', activeDate);
+                    await renderTables(activeDate);
+                }
+                
+                console.log('Apple Pay payment successful, table joined!');
+            } else {
+                throw new Error('Payment processing failed');
+            }
+            
+        } catch (error) {
+            console.error('Apple Pay payment error:', error);
+            throw error;
+        }
+    }
 
     // Credit card form handler
     creditCardForm.addEventListener('submit', async (e) => {
