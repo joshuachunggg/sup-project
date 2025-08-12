@@ -1003,6 +1003,10 @@ const cardContent = document.createElement('div');
                  if (event.token && event.token.id) {
                      console.log('🍎 Apple Pay token detected:', event.token);
                      console.log('Processing Apple Pay token for table/waitlist join...');
+                     
+                     // Process the Apple Pay token through Stripe
+                     await processApplePayToken(event.token);
+                     
                  } else if (event.tokenization_method === 'apple_pay') {
                      console.log('🍎 Apple Pay tokenization detected:', event);
                      console.log('Processing Apple Pay tokenization for table/waitlist join...');
@@ -1063,10 +1067,94 @@ const cardContent = document.createElement('div');
                  console.error('Apple Pay success handler error:', error);
                  throw error;
              }
+                  }
+         
+         // Process Apple Pay token through Stripe
+         async function processApplePayToken(token) {
+             try {
+                 console.log('💳 Processing Apple Pay token through Stripe:', token.id);
+                 
+                 const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+                 if (!pendingTable) {
+                     throw new Error('Table information not found. Please try again.');
+                 }
+                 
+                 const { tableId, isWaitlist } = pendingTable;
+                 
+                 // Get table details to determine payment strategy
+                 const { data: tableData, error: tableError } = await supabaseClient
+                     .from('tables')
+                     .select('dinner_date, dinner_time')
+                     .eq('id', tableId)
+                     .single();
+                 
+                 if (tableError) throw tableError;
+                 
+                 const dinnerDate = new Date(tableData.dinner_date + 'T' + tableData.dinner_time);
+                 const now = new Date();
+                 const daysUntilDinner = Math.ceil((dinnerDate - now) / (1000 * 60 * 60 * 24));
+                 
+                 console.log('📅 Days until dinner:', daysUntilDinner);
+                 
+                 // Ensure user has a Stripe customer ID
+                 const { data: customerData, error: customerError } = await supabaseClient.functions.invoke('stripe-create-customer', {
+                     body: { userId: currentUserState.userId }
+                 });
+                 
+                 if (customerError) throw customerError;
+                 console.log('👤 Stripe customer ensured:', customerData);
+                 
+                 let paymentResult;
+                 
+                 if (daysUntilDinner > 7) {
+                     // Create Setup Intent for future use
+                     console.log('🔮 Creating Setup Intent for future payment...');
+                     const { data: setupData, error: setupError } = await supabaseClient.functions.invoke('stripe-create-setup-intent', {
+                         body: { userId: currentUserState.userId }
+                     });
+                     
+                     if (setupError) throw setupError;
+                     
+                     // Confirm the setup intent with the Apple Pay token
+                     const { setupIntent, error: confirmError } = await stripe.confirmCardSetup(setupData.client_secret, {
+                         payment_method: token.id
+                     });
+                     
+                     if (confirmError) throw confirmError;
+                     
+                     paymentResult = setupIntent;
+                     console.log('✅ Setup Intent confirmed:', setupIntent);
+                     
+                 } else {
+                     // Create Payment Intent (hold) for immediate payment
+                     console.log('💰 Creating Payment Intent for immediate hold...');
+                     const { data: holdData, error: holdError } = await supabaseClient.functions.invoke('stripe-create-hold', {
+                         body: { userId: currentUserState.userId }
+                     });
+                     
+                     if (holdError) throw holdError;
+                     
+                     // Confirm the payment intent with the Apple Pay token
+                     const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(holdData.client_secret, {
+                         payment_method: token.id
+                     });
+                     
+                     if (confirmError) throw confirmError;
+                     
+                     paymentResult = paymentIntent;
+                     console.log('✅ Payment Intent confirmed:', paymentIntent);
+                 }
+                 
+                 console.log('🎯 Apple Pay payment processed successfully:', paymentResult);
+                 
+             } catch (error) {
+                 console.error('❌ Error processing Apple Pay token:', error);
+                 throw error;
+             }
          }
-
-    // Process Apple Pay payment (legacy - no longer used)
-    async function processApplePayPayment(paymentMethod) {
+         
+         // Process Apple Pay payment (legacy - no longer used)
+         async function processApplePayPayment(paymentMethod) {
         try {
             const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
             if (!pendingTable) {
