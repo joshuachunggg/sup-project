@@ -1097,6 +1097,9 @@ const cardContent = document.createElement('div');
                  
                  console.log('📅 Days until dinner:', daysUntilDinner);
                  
+                 // Define collateral amount
+                 const collateral_cents = 2500; // $25.00
+                 
                  // Ensure user has a Stripe customer ID
                  const { data: customerData, error: customerError } = await supabaseClient.functions.invoke('stripe-create-customer', {
                      body: { userId: currentUserState.userId }
@@ -1111,7 +1114,11 @@ const cardContent = document.createElement('div');
                      // Create Setup Intent for future use
                      console.log('🔮 Creating Setup Intent for future payment...');
                      const { data: setupData, error: setupError } = await supabaseClient.functions.invoke('stripe-create-setup-intent', {
-                         body: { userId: currentUserState.userId }
+                         body: { 
+                             userId: currentUserState.userId,
+                             tableId: tableId,
+                             collateral_cents: collateral_cents
+                         }
                      });
                      
                      if (setupError) throw setupError;
@@ -1130,7 +1137,11 @@ const cardContent = document.createElement('div');
                      // Create Payment Intent (hold) for immediate payment
                      console.log('💰 Creating Payment Intent for immediate hold...');
                      const { data: holdData, error: holdError } = await supabaseClient.functions.invoke('stripe-create-hold', {
-                         body: { userId: currentUserState.userId }
+                         body: { 
+                             userId: currentUserState.userId,
+                             tableId: tableId,
+                             collateral_cents: collateral_cents
+                         }
                      });
                      
                      if (holdError) throw holdError;
