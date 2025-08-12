@@ -1084,11 +1084,36 @@ const cardContent = document.createElement('div');
                 const { data: waitlists, error: waitlistsError } = await supabaseClient.from('waitlists').select('table_id').eq('user_id', localUserId);
                 if (waitlistsError) throw waitlistsError;
 
+                // Check if the joined table's dinner time has passed
+                let validJoinedTableId = null;
+                if (signup && signup.table_id) {
+                    try {
+                        const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date, dinner_time').eq('id', signup.table_id).single();
+                        if (!tableError && table) {
+                            const dinnerDateTime = new Date(`${table.dinner_date}T${table.dinner_time}`);
+                            const now = new Date();
+                            
+                            // If dinner time has passed (more than 2 hours after), consider it finished
+                            if (dinnerDateTime > now) {
+                                validJoinedTableId = signup.table_id;
+                            } else {
+                                // Dinner has passed, remove the signup record
+                                await supabaseClient.from('signups').delete().eq('user_id', localUserId).eq('table_id', signup.table_id);
+                                console.log('Removed expired table signup for user:', localUserId);
+                            }
+                        }
+                    } catch (tableCheckError) {
+                        console.error('Error checking table dinner time:', tableCheckError);
+                        // If we can't check the table, assume it's still valid
+                        validJoinedTableId = signup.table_id;
+                    }
+                }
+
                 if (profile) {
                     currentUserState = {
                         isLoggedIn: true,
                         userId: localUserId,
-                        joinedTableId: signup ? signup.table_id : null,
+                        joinedTableId: validJoinedTableId,
                         waitlistedTableIds: waitlists ? waitlists.map(w => w.table_id) : [],
                         isSuspended: profile.is_suspended,
                         suspensionEndDate: profile.suspension_end_date,
