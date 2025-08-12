@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // Initialize Stripe
-    const stripe = Stripe('pk_test_51RoP12090xmS47wUC7t9RjXOtqLIkZnKIphRsJaB5V2mH4MyWFT3WggYIEsr2EaDot78tYF3bZ5wVr1CC1Dc6xGy00rI5QkBOa');
+    const stripe = Stripe('pk_live_51RoP0uP6irEQ7yILvYBuYB0jrRZtcl5iO0rqi5ozyIMrXpPIHdGVoFr0TWvJbjkZZXGkv6qeUewCS173UQ1qaMLh00juf0Lay2');
     let elements;
     let cardElement;
 
@@ -577,19 +577,19 @@ const cardContent = document.createElement('div');
             console.log('Final profile data before validation:', profileData);
             
             // Validate profile data before proceeding
-            // Note: Database returns 'id' and 'auth_user_id', not 'userId' and 'authUserId'
-            if (!profileData.id || !profileData.auth_user_id) {
+            // Note: create-user-profile returns 'userId' and 'authUserId', not 'id' and 'auth_user_id'
+            if (!profileData.userId || !profileData.authUserId) {
                 console.error('Profile data validation failed:', {
-                    hasId: !!profileData.id,
-                    hasAuthUserId: !!profileData.auth_user_id,
+                    hasUserId: !!profileData.userId,
+                    hasAuthUserId: !!profileData.authUserId,
                     profileData: profileData
                 });
                 throw new Error('Invalid profile data received. Please try again.');
             }
             
             // Store user IDs in localStorage
-            localStorage.setItem('supdinner_user_id', profileData.id);
-            localStorage.setItem('supdinner_auth_user_id', profileData.auth_user_id);
+            localStorage.setItem('supdinner_user_id', profileData.userId);
+            localStorage.setItem('supdinner_auth_user_id', profileData.authUserId);
             
             console.log('Stored user IDs:', {
                 userId: profileData.id,
@@ -599,13 +599,13 @@ const cardContent = document.createElement('div');
             // Update user state
             currentUserState = {
                 isLoggedIn: true,
-                userId: profileData.id,
-                joinedTableId: profileData.joinedTableId || null,
-                waitlistedTableIds: profileData.waitlistedTableIds || [],
-                isSuspended: profileData.is_suspended || false,
-                suspensionEndDate: profileData.suspension_end_date || null,
-                name: profileData.first_name,
-                phone: profileData.phone_number
+                userId: profileData.userId,
+                joinedTableId: profileData.user?.joinedTableId || null,
+                waitlistedTableIds: profileData.user?.waitlistedTableIds || [],
+                isSuspended: profileData.user?.is_suspended || false,
+                suspensionEndDate: profileData.user?.suspension_end_date || null,
+                name: profileData.user?.first_name || '',
+                phone: profileData.user?.phone_number || ''
             };
             
             closeModal(authModal);
@@ -901,8 +901,9 @@ const cardContent = document.createElement('div');
                 requestFormError.classList.add('hidden');
                 requestSubmitButton.disabled = true;
             }
-            if (modal === loginModal) {
-                loginFormError.classList.add('hidden');
+            if (modal === authModal) {
+                authLoginError.classList.add('hidden');
+                authSignupError.classList.add('hidden');
             }
             refreshData();
         }, 300);

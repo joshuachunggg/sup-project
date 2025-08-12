@@ -124,11 +124,21 @@ serve(async (req) => {
       if (updateError) throw updateError;
     }
 
+    // Get the full user profile to return
+    const { data: userProfile, error: profileError } = await supabaseAdmin
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    
+    if (profileError) throw profileError;
+
     return new Response(JSON.stringify({ 
       success: true, 
       userId: userId,
       authUserId: user.id,
-      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Profile created successfully!"
+      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Profile created successfully!",
+      user: userProfile
     }), {
       headers: { 
         "Content-Type": "application/json", 
