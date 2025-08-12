@@ -1123,9 +1123,17 @@ const cardContent = document.createElement('div');
                      
                      if (setupError) throw setupError;
                      
+                     // Convert Apple Pay token to payment method data for Stripe
+                     const paymentMethodData = {
+                         type: 'card',
+                         card: {
+                             token: token.id
+                         }
+                     };
+                     
                      // Confirm the setup intent with the Apple Pay token
                      const { setupIntent, error: confirmError } = await stripe.confirmCardSetup(setupData.client_secret, {
-                         payment_method: token.id
+                         payment_method_data: paymentMethodData
                      });
                      
                      if (confirmError) throw confirmError;
@@ -1146,9 +1154,17 @@ const cardContent = document.createElement('div');
                      
                      if (holdError) throw holdError;
                      
+                     // Convert Apple Pay token to payment method data for Stripe
+                     const paymentMethodData = {
+                         type: 'card',
+                         card: {
+                             token: token.id
+                         }
+                     };
+                     
                      // Confirm the payment intent with the Apple Pay token
                      const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(holdData.client_secret, {
-                         payment_method: token.id
+                         payment_method_data: paymentMethodData
                      });
                      
                      if (confirmError) throw confirmError;
