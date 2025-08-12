@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SUPABASE CLIENT INITIALIZATION ---
     const SUPABASE_URL = 'https://ennlvlcogzowropkwbiu.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVubmx2bGNvZ3pvd3JvcGt3Yml1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5MTIyMTAsImV4cCI6MjA2OTQ4ODIxMH0.dCsyTAsAhcvSpeUMxWSyo_9praZC2wPDzmb3vCkHpPc';
-    
+
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     
     // Initialize Stripe
@@ -287,10 +287,15 @@ const cardContent = document.createElement('div');
     
     // Initialize Payment Request Button (Apple Pay/Google Pay) if available
     function initializeApplePay() {
+        console.log('🚀 Initializing Apple Pay...');
         const paymentRequestButton = document.getElementById('payment-request-button');
-        if (!paymentRequestButton) return;
+        if (!paymentRequestButton) {
+            console.log('❌ Payment request button element not found');
+            return;
+        }
         
         try {
+            console.log('🔧 Creating payment request...');
             // Create the payment request first
             const paymentRequest = stripe.paymentRequest({
                 country: 'US',
@@ -303,7 +308,7 @@ const cardContent = document.createElement('div');
                 requestPayerEmail: true,
             });
             
-            console.log('Payment Request created:', paymentRequest);
+            console.log('🔍 Payment request created:', paymentRequest);
             
             // Check if payment request is supported
             paymentRequest.canMakePayment().then(function(result) {
@@ -319,16 +324,16 @@ const cardContent = document.createElement('div');
                     // Mount the payment request button
                     paymentRequestElement.mount('#payment-request-button');
                     
-                    // Handle payment request completion
+                    // Handle payment request completion - Apple Pay uses 'payment' event
                     paymentRequest.on('payment', async (event) => {
-                        console.log('Payment request payment received:', event);
+                        console.log('🎯 APPLE PAY PAYMENT RECEIVED:', event);
                         console.log('Payment details:', event);
                         
                         try {
                             // Apple Pay handled the payment, now just join the table/waitlist
                             await handleApplePaySuccess(event);
                         } catch (error) {
-                            console.error('Payment request payment failed:', error);
+                            console.error('❌ Apple Pay payment failed:', error);
                             const cardErrors = document.getElementById('card-errors');
                             cardErrors.textContent = `Payment failed: ${error.message}`;
                             cardErrors.classList.remove('hidden');
@@ -337,41 +342,47 @@ const cardContent = document.createElement('div');
                     
                     // Add error handling for Apple Pay
                     paymentRequest.on('cancel', (event) => {
-                        console.log('Apple Pay payment cancelled:', event);
+                        console.log('🚫 Apple Pay payment cancelled:', event);
                     });
                     
                     paymentRequest.on('error', (event) => {
-                        console.error('Apple Pay error:', event);
+                        console.error('❌ Apple Pay error:', event);
                         const cardErrors = document.getElementById('card-errors');
                         cardErrors.textContent = `Apple Pay error: ${event.error.message}`;
                         cardErrors.classList.remove('hidden');
                     });
                     
-                    // Also listen for payment_method as backup
+                    // Google Pay and Link use 'payment_method' event
                     paymentRequest.on('payment_method', async (event) => {
-                        console.log('Payment request payment method received (backup):', event);
+                        console.log('🔗 Payment method received (Google Pay/Link):', event);
                         console.log('Payment method details:', event.paymentMethod);
                         
                         try {
-                            // Apple Pay handled the payment, now just join the table/waitlist
+                            // Process the payment method
                             await handleApplePaySuccess(event);
                         } catch (error) {
-                            console.error('Payment request payment failed:', error);
+                            console.error('❌ Payment method failed:', error);
                             const cardErrors = document.getElementById('card-errors');
                             cardErrors.textContent = `Payment failed: ${error.message}`;
                             cardErrors.classList.remove('hidden');
                         }
                     });
                     
-                    console.log('Payment Request Button initialized successfully');
+                    // Debug: Log all available events
+                    console.log('🔍 Available payment request events:', Object.keys(paymentRequest));
+                    console.log('🔍 Payment request object:', paymentRequest);
+                    
+                    console.log('✅ Payment Request Button initialized successfully');
+                    console.log('🔍 Button element:', paymentRequestButton);
+                    console.log('🔍 Button visibility:', paymentRequestButton.style.display);
                 } else {
-                    console.log('Payment Request not supported on this device');
+                    console.log('❌ Payment Request not supported on this device');
                     paymentRequestButton.style.display = 'none';
                 }
             });
             
         } catch (error) {
-            console.error('Failed to initialize Payment Request Button:', error);
+            console.error('❌ Failed to initialize Payment Request Button:', error);
             // Hide button if initialization fails
             paymentRequestButton.style.display = 'none';
         }
@@ -583,12 +594,12 @@ const cardContent = document.createElement('div');
 
         if (!email || !password || !phoneNumber || !firstName || !ageRange || !disclaimerChecked) {
             formError1.textContent = "Please fill out all required fields and agree to the terms.";
-            formError1.classList.remove('hidden');
-            joinSubmitButton.disabled = false;
-            return;
-        }
+                formError1.classList.remove('hidden');
+                joinSubmitButton.disabled = false;
+                return;
+            }
 
-        try {
+            try {
             const formData = {
                 email: email,
                 password: password,
@@ -601,18 +612,18 @@ const cardContent = document.createElement('div');
             };
 
             const { data, error } = await supabaseClient.functions.invoke('auth-signup', { body: formData });
-            if (error) throw error;
+                if (error) throw error;
             
             // Store both user IDs
-            localStorage.setItem('supdinner_user_id', data.userId);
+                localStorage.setItem('supdinner_user_id', data.userId);
             localStorage.setItem('supdinner_auth_user_id', data.authUserId);
             
-            showSuccessStep();
-        } catch(error) {
-            formError1.textContent = `Error: ${error.message}`;
-            formError1.classList.remove('hidden');
-            joinSubmitButton.disabled = false;
-        }
+                showSuccessStep();
+            } catch(error) {
+                formError1.textContent = `Error: ${error.message}`;
+                formError1.classList.remove('hidden');
+                joinSubmitButton.disabled = false;
+            }
     });
 
     logoutLink.addEventListener('click', (e) => {
@@ -640,8 +651,8 @@ const cardContent = document.createElement('div');
         if (!email || !password) {
             authLoginError.textContent = "Please enter your email and password.";
             authLoginError.classList.remove('hidden');
-            return;
-        }
+                return;
+            }
 
         try {
             // First, try to sign in with Supabase Auth
@@ -890,7 +901,7 @@ const cardContent = document.createElement('div');
 
     disclaimerCheckbox.addEventListener('change', () => {
         // Always require disclaimer checkbox to be checked
-        joinSubmitButton.disabled = !disclaimerCheckbox.checked;
+            joinSubmitButton.disabled = !disclaimerCheckbox.checked;
     });
     
     // Auth signup disclaimer checkbox handler
@@ -1287,7 +1298,7 @@ const cardContent = document.createElement('div');
             } else if (modal === creditCardModal) {
                 // Don't call refreshData() for credit card modal - it's handled explicitly after table join
             } else {
-                refreshData();
+            refreshData();
             }
         }, 300);
     }
@@ -1311,8 +1322,8 @@ const cardContent = document.createElement('div');
     }
     
     function showSuccessStep() {
-        successTitle.textContent = "You're In!";
-        successMessage.textContent = "Welcome to the table! We'll send the final details to your phone soon. See you there!";
+            successTitle.textContent = "You're In!";
+            successMessage.textContent = "Welcome to the table! We'll send the final details to your phone soon. See you there!";
         showModalStep(3, joinModal);
     }
 
@@ -1368,7 +1379,7 @@ const cardContent = document.createElement('div');
     closeRequestModal1.addEventListener('click', () => closeModal(requestModal));
     closeRequestModal2.addEventListener('click', () => closeModal(requestModal));
     requestModal.addEventListener('click', (e) => { if (e.target === requestModal) closeModal(requestModal); });
-    
+
     // Credit card modal close handlers
     closeCreditCardModal.addEventListener('click', () => closeModal(creditCardModal));
     creditCardModal.addEventListener('click', (e) => { if (e.target === creditCardModal) closeModal(creditCardModal); });
@@ -1421,7 +1432,7 @@ const cardContent = document.createElement('div');
             alert(`Error preparing payment: ${error.message}`);
         }
     }
-    
+
     // --- INITIALIZATION & REFRESH LOGIC ---
 
     async function refreshData() {
@@ -1433,7 +1444,7 @@ const cardContent = document.createElement('div');
 
         if (localUserId && localAuthUserId && localUserId !== 'undefined' && localAuthUserId !== 'undefined') {
             try {
-                loginButton.classList.add('hidden');
+            loginButton.classList.add('hidden');
                 
                 // Validate UUID format before querying
                 if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(localUserId)) {
@@ -1477,7 +1488,7 @@ const cardContent = document.createElement('div');
                     }
                 }
 
-                if (profile) {
+            if (profile) {
                     console.log('refreshData - setting currentUserState:', { 
                         localUserId, 
                         validJoinedTableId, 
@@ -1485,26 +1496,26 @@ const cardContent = document.createElement('div');
                         waitlists: waitlists?.map(w => w.table_id)
                     });
                     
-                    currentUserState = {
-                        isLoggedIn: true,
-                        userId: localUserId,
+                currentUserState = {
+                    isLoggedIn: true,
+                    userId: localUserId,
                         joinedTableId: validJoinedTableId,
-                        waitlistedTableIds: waitlists ? waitlists.map(w => w.table_id) : [],
-                        isSuspended: profile.is_suspended,
-                        suspensionEndDate: profile.suspension_end_date,
-                        name: profile.first_name,
-                        phone: profile.phone_number
-                    };
-                    userGreetingSpan.textContent = `Welcome, ${profile.first_name}!`;
-                    userStatusDiv.classList.remove('hidden');
-                    document.getElementById('request-name').value = profile.first_name;
-                    document.getElementById('request-phone').value = profile.phone_number;
-                } else {
+                    waitlistedTableIds: waitlists ? waitlists.map(w => w.table_id) : [],
+                    isSuspended: profile.is_suspended,
+                    suspensionEndDate: profile.suspension_end_date,
+                    name: profile.first_name,
+                    phone: profile.phone_number
+                };
+                userGreetingSpan.textContent = `Welcome, ${profile.first_name}!`;
+                userStatusDiv.classList.remove('hidden');
+                document.getElementById('request-name').value = profile.first_name;
+                document.getElementById('request-phone').value = profile.phone_number;
+            } else {
                     // Clear invalid user state
-                    localStorage.removeItem('supdinner_user_id');
+                localStorage.removeItem('supdinner_user_id');
                     localStorage.removeItem('supdinner_auth_user_id');
-                    currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
-                    userStatusDiv.classList.add('hidden');
+                currentUserState = { isLoggedIn: false, userId: null, joinedTableId: null, waitlistedTableIds: [], isSuspended: false, suspensionEndDate: null };
+                userStatusDiv.classList.add('hidden');
                     loginButton.classList.remove('hidden');
                 }
             } catch (error) {
