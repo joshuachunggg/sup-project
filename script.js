@@ -97,6 +97,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CORE FUNCTIONS ---
 
     const renderTables = async (dateString) => {
+        console.log('renderTables called with date:', dateString);
+        console.log('currentUserState at render start:', currentUserState);
+        
         tablesContainer.innerHTML = '';
         loadingSpinner.classList.remove('hidden');
         noTablesMessage.classList.add('hidden');
@@ -131,6 +134,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isFull = spotsLeft <= 0;
             const isUserJoined = currentUserState.isLoggedIn && currentUserState.joinedTableId === table.id;
             const isUserWaitlisted = currentUserState.isLoggedIn && currentUserState.waitlistedTableIds.includes(table.id);
+            
+            console.log(`Table ${table.id}: isUserJoined=${isUserJoined}, joinedTableId=${currentUserState.joinedTableId}, isLoggedIn=${currentUserState.isLoggedIn}`);
 
             let button;
             if (table.is_cancelled) {
