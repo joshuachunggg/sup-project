@@ -995,26 +995,47 @@ const cardContent = document.createElement('div');
     
     async function joinTableAfterLogin(tableId) {
         try {
-            const { error } = await supabaseClient.functions.invoke('join-table', {
-                body: {
-                    tableId: tableId,
-                    userId: currentUserState.userId
-                }
-            });
+            // Set the selected table ID for the Stripe flow
+            selectedTableId = tableId;
             
-            if (error) throw error;
+            // Get table details to check dinner date
+            const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date').eq('id', tableId).single();
+            if (tableError) throw tableError;
             
-            // Update user state
-            currentUserState.joinedTableId = tableId;
+            // Calculate days until dinner
+            const dinnerDate = new Date(table.dinner_date);
+            const today = new Date();
+            const daysUntilDinner = Math.ceil((dinnerDate - today) / (1000 * 60 * 60 * 24));
             
-            // Refresh the display
-            await refreshData();
+            // Store table info for payment processing
+            localStorage.setItem('supdinner_pending_table', JSON.stringify({
+                tableId: tableId,
+                daysUntilDinner: daysUntilDinner
+            }));
             
-            // Show success message
-            alert('Successfully joined the table!');
+            // Show credit card form for collateral
+            openModal(creditCardModal);
+            
+            // Initialize Stripe Elements if not already done
+            if (!elements) {
+                elements = stripe.elements();
+                cardElement = elements.create('card', {
+                    style: {
+                        base: {
+                            fontSize: '16px',
+                            color: '#424770',
+                            '::placeholder': {
+                                color: '#aab7c4',
+                            },
+                        },
+                    },
+                });
+                cardElement.mount(cardElementContainer);
+            }
             
         } catch (error) {
-            alert(`Error joining table: ${error.message}`);
+            console.error('Error preparing payment for table join:', error);
+            alert(`Error preparing payment: ${error.message}`);
         }
     }
     
