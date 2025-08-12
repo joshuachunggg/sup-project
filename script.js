@@ -1096,6 +1096,8 @@ const cardContent = document.createElement('div');
                 const { data: signup, error: signupError } = await supabaseClient.from('signups').select('table_id').eq('user_id', localUserId).maybeSingle();
                 if (signupError) throw signupError;
                 
+                console.log('refreshData - signup query result:', { signup, signupError, localUserId });
+                
                 const { data: waitlists, error: waitlistsError } = await supabaseClient.from('waitlists').select('table_id').eq('user_id', localUserId);
                 if (waitlistsError) throw waitlistsError;
 
@@ -1130,6 +1132,13 @@ const cardContent = document.createElement('div');
                 }
 
                 if (profile) {
+                    console.log('refreshData - setting currentUserState:', { 
+                        localUserId, 
+                        validJoinedTableId, 
+                        signupTableId: signup?.table_id,
+                        waitlists: waitlists?.map(w => w.table_id)
+                    });
+                    
                     currentUserState = {
                         isLoggedIn: true,
                         userId: localUserId,
