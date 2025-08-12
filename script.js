@@ -1102,35 +1102,8 @@ const cardContent = document.createElement('div');
                 const { data: waitlists, error: waitlistsError } = await supabaseClient.from('waitlists').select('table_id').eq('user_id', localUserId);
                 if (waitlistsError) throw waitlistsError;
 
-                // Check if the joined table's dinner time has passed
-                let validJoinedTableId = null;
-                if (signup && signup.table_id) {
-                    try {
-                        const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date, dinner_time').eq('id', signup.table_id).single();
-                        if (!tableError && table) {
-                            // Handle timezone properly - treat dinner_date as local date and dinner_time as local time
-                            const [year, month, day] = table.dinner_date.split('-');
-                            const [hours, minutes] = table.dinner_time.split(':');
-                            
-                            // Create date in local timezone (not UTC)
-                            const dinnerDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
-                            const now = new Date();
-                            
-                            // If dinner time has passed (more than 2 hours after), consider it finished
-                            if (dinnerDateTime > now) {
-                                validJoinedTableId = signup.table_id;
-                            } else {
-                                // Dinner has passed, remove the signup record
-                                await supabaseClient.from('signups').delete().eq('user_id', localUserId).eq('table_id', signup.table_id);
-                                console.log('Removed expired table signup for user:', localUserId);
-                            }
-                        }
-                    } catch (tableCheckError) {
-                        console.error('Error checking table dinner time:', tableCheckError);
-                        // If we can't check the table, assume it's still valid
-                        validJoinedTableId = signup.table_id;
-                    }
-                }
+                // Use the signup data directly since timezone is handled on database end
+                const validJoinedTableId = signup && signup.table_id ? signup.table_id : null;
 
                 if (profile) {
                     console.log('refreshData - setting currentUserState:', { 
