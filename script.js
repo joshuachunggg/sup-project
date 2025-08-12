@@ -320,8 +320,24 @@ const cardContent = document.createElement('div');
                     paymentRequestElement.mount('#payment-request-button');
                     
                     // Handle payment request completion
+                    paymentRequest.on('payment', async (event) => {
+                        console.log('Payment request payment received:', event);
+                        console.log('Payment details:', event);
+                        
+                        try {
+                            // Process the payment the same way as credit card
+                            await processApplePayPayment(event.paymentMethod);
+                        } catch (error) {
+                            console.error('Payment request payment failed:', error);
+                            const cardErrors = document.getElementById('card-errors');
+                            cardErrors.textContent = `Payment failed: ${error.message}`;
+                            cardErrors.classList.remove('hidden');
+                        }
+                    });
+                    
+                    // Also listen for payment_method as backup
                     paymentRequest.on('payment_method', async (event) => {
-                        console.log('Payment request payment method received:', event);
+                        console.log('Payment request payment method received (backup):', event);
                         console.log('Payment method details:', event.paymentMethod);
                         
                         try {
