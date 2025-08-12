@@ -875,13 +875,14 @@ const cardContent = document.createElement('div');
                 // Close modal and refresh
                 closeModal(creditCardModal);
                 
+                // Update the current user state to reflect the joined table
+                currentUserState.joinedTableId = tableId;
+                
                 // Force a re-render of the current day's tables to show updated state
                 if (activeDate) {
                     console.log('Re-rendering tables for current date after join:', activeDate);
                     await renderTables(activeDate);
                 }
-                
-                await refreshData();
                 
             } else {
                 throw new Error('Payment processing failed');
