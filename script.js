@@ -155,6 +155,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (!currentUserState.isLoggedIn) {
                         button = createButton('log in to join waitlist', ['join-waitlist-button', 'btn-primary']);
                         button.dataset.tableId = table.id;
+                    } else if (currentUserState.joinedTableId) {
+                        // User is in a table but can join waitlist for upgrade opportunity
+                        button = createButton('Join Waitlist (Upgrade)', ['join-waitlist-button', 'btn-primary']);
+                        button.dataset.tableId = table.id;
                     } else {
                         button = createButton('Join Waitlist', ['join-waitlist-button', 'btn-primary']);
                         button.dataset.tableId = table.id;
@@ -474,14 +478,49 @@ const cardContent = document.createElement('div');
             return;
         }
         
+        // User is logged in, show credit card form for waitlist collateral
         try {
-            const { error } = await supabaseClient.functions.invoke('join-waitlist', {
-                body: { tableId: selectedTableId, userId: currentUserState.userId }
-            });
-            if (error) throw error;
-            await refreshData();
+            // Get table details to check dinner date
+            const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date').eq('id', selectedTableId).single();
+            if (tableError) throw tableError;
+            
+            // Calculate days until dinner
+            const dinnerDate = new Date(table.dinner_date);
+            const today = new Date();
+            const daysUntilDinner = Math.ceil((dinnerDate - today) / (1000 * 60 * 60 * 24));
+            
+            // Store table info for payment processing (mark as waitlist)
+            localStorage.setItem('supdinner_pending_table', JSON.stringify({
+                tableId: selectedTableId,
+                daysUntilDinner: daysUntilDinner,
+                isWaitlist: true
+            }));
+            
+            // Show credit card form
+            openModal(creditCardModal);
+            
+            // Initialize Stripe Elements if not already done
+            if (!elements) {
+                elements = stripe.elements();
+                cardElement = elements.create('card', {
+                    style: {
+                        base: {
+                            fontSize: '16px',
+                            color: '#424770',
+                            '::placeholder': {
+                                color: '#aab7c4',
+                            },
+                        },
+                    },
+                });
+                cardElement.mount(cardElementContainer);
+                
+                // Initialize Apple Pay if available
+                initializeApplePay();
+            }
+            
         } catch (error) {
-            alert(`Error joining waitlist: ${error.message}`);
+            alert(`Error preparing waitlist payment: ${error.message}`);
         }
     };
 
@@ -920,15 +959,34 @@ const cardContent = document.createElement('div');
             }
             
             if (paymentResult.success) {
-                // Now join the table
-                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
-                    body: { tableId: tableId, userId: currentUserState.userId }
-                });
+                const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+                const isWaitlist = pendingTable?.isWaitlist;
                 
-                if (joinError) throw joinError;
-                
-                // Update current user state
-                currentUserState.joinedTableId = tableId;
+                if (isWaitlist) {
+                    // Join waitlist instead of table
+                    const { error: waitlistError } = await supabaseClient.functions.invoke('join-waitlist', {
+                        body: { tableId: tableId, userId: currentUserState.userId }
+                    });
+                    
+                    if (waitlistError) throw waitlistError;
+                    
+                    // Update current user state
+                    currentUserState.waitlistedTableIds.push(tableId);
+                    
+                    console.log('Apple Pay payment successful, waitlist joined!');
+                } else {
+                    // Join table (existing logic)
+                    const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                        body: { tableId: tableId, userId: currentUserState.userId }
+                    });
+                    
+                    if (joinError) throw joinError;
+                    
+                    // Update current user state
+                    currentUserState.joinedTableId = tableId;
+                    
+                    console.log('Apple Pay payment successful, table joined!');
+                }
                 
                 // Clear pending table info
                 localStorage.removeItem('supdinner_pending_table');
@@ -942,7 +1000,6 @@ const cardContent = document.createElement('div');
                     await renderTables(activeDate);
                 }
                 
-                console.log('Apple Pay payment successful, table joined!');
             } else {
                 throw new Error('Payment processing failed');
             }
@@ -1049,24 +1106,40 @@ const cardContent = document.createElement('div');
             }
             
             if (paymentResult.success) {
-                // Now join the table
-                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
-                    body: { tableId: tableId, userId: currentUserState.userId }
-                });
+                const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+                const isWaitlist = pendingTable?.isWaitlist;
                 
-                if (joinError) throw joinError;
-                
-                // Update user state
-                currentUserState.joinedTableId = tableId;
+                if (isWaitlist) {
+                    // Join waitlist instead of table
+                    const { error: waitlistError } = await supabaseClient.functions.invoke('join-waitlist', {
+                        body: { tableId: tableId, userId: currentUserState.userId }
+                    });
+                    
+                    if (waitlistError) throw waitlistError;
+                    
+                    // Update current user state
+                    currentUserState.waitlistedTableIds.push(tableId);
+                    
+                    console.log('Payment successful, waitlist joined!');
+                } else {
+                    // Join table (existing logic)
+                    const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                        body: { tableId: tableId, userId: currentUserState.userId }
+                    });
+                    
+                    if (joinError) throw joinError;
+                    
+                    // Update current user state
+                    currentUserState.joinedTableId = tableId;
+                    
+                    console.log('Payment successful, table joined!');
+                }
                 
                 // Clear pending table info
                 localStorage.removeItem('supdinner_pending_table');
                 
                 // Close modal and refresh
                 closeModal(creditCardModal);
-                
-                // Update the current user state to reflect the joined table
-                currentUserState.joinedTableId = tableId;
                 
                 // Force a re-render of the current day's tables to show updated state
                 if (activeDate) {
