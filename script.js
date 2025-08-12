@@ -1076,6 +1076,7 @@ const cardContent = document.createElement('div');
     // --- INITIALIZATION & REFRESH LOGIC ---
 
     async function refreshData() {
+        console.log('=== refreshData() FUNCTION CALLED ===');
         const localUserId = localStorage.getItem('supdinner_user_id');
         const localAuthUserId = localStorage.getItem('supdinner_auth_user_id');
 
@@ -1185,13 +1186,16 @@ const cardContent = document.createElement('div');
     };
 
     const initialize = async () => {
+        console.log('=== initialize() FUNCTION CALLED ===');
         try {
             const { data: dates, error: datesError } = await supabaseClient.rpc('get_distinct_upcoming_dates');
             if (datesError) throw datesError;
 
             if (dates && dates.length > 0) {
+                console.log('=== About to call refreshData() ===');
                 renderTabs(dates); 
                 await refreshData();
+                console.log('=== refreshData() completed ===');
             } else {
                 loadingSpinner.classList.add('hidden');
                 noTablesMessage.textContent = "No upcoming dinners are scheduled. Check back soon!";
