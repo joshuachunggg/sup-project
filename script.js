@@ -325,8 +325,8 @@ const cardContent = document.createElement('div');
                         console.log('Payment details:', event);
                         
                         try {
-                            // Process the payment the same way as credit card
-                            await processApplePayPayment(event.paymentMethod);
+                            // Apple Pay handled the payment, now just join the table/waitlist
+                            await handleApplePaySuccess(event);
                         } catch (error) {
                             console.error('Payment request payment failed:', error);
                             const cardErrors = document.getElementById('card-errors');
@@ -341,8 +341,8 @@ const cardContent = document.createElement('div');
                         console.log('Payment method details:', event.paymentMethod);
                         
                         try {
-                            // Process the payment the same way as credit card
-                            await processApplePayPayment(event.paymentMethod);
+                            // Apple Pay handled the payment, now just join the table/waitlist
+                            await handleApplePaySuccess(event);
                         } catch (error) {
                             console.error('Payment request payment failed:', error);
                             const cardErrors = document.getElementById('card-errors');
@@ -890,7 +890,67 @@ const cardContent = document.createElement('div');
         requestSubmitButton.disabled = !requestDisclaimerCheckbox.checked;
     });
 
-    // Process Apple Pay payment
+    // Handle Apple Pay payment success
+    async function handleApplePaySuccess(event) {
+        try {
+            console.log('Apple Pay payment successful, processing table/waitlist join...');
+            
+            const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+            if (!pendingTable) {
+                throw new Error('Table information not found. Please try again.');
+            }
+            
+            const { tableId, isWaitlist } = pendingTable;
+            
+            if (isWaitlist) {
+                // Join waitlist
+                console.log('Joining waitlist for table:', tableId);
+                const { error: waitlistError } = await supabaseClient.functions.invoke('join-waitlist', {
+                    body: { tableId: tableId, userId: currentUserState.userId }
+                });
+                
+                if (waitlistError) throw waitlistError;
+                
+                // Update current user state
+                currentUserState.waitlistedTableIds.push(tableId);
+                
+                console.log('Apple Pay payment successful, waitlist joined!');
+            } else {
+                // Join table
+                console.log('Joining table:', tableId);
+                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                    body: { tableId: tableId, userId: currentUserState.userId }
+                });
+                
+                if (joinError) throw joinError;
+                
+                // Update current user state
+                currentUserState.joinedTableId = tableId;
+                
+                console.log('Apple Pay payment successful, table joined!');
+            }
+            
+            // Clear pending table info
+            localStorage.removeItem('supdinner_pending_table');
+            
+            // Close modal and refresh
+            closeModal(creditCardModal);
+            
+            // Force a re-render of the current day's tables to show updated state
+            if (activeDate) {
+                console.log('Re-rendering tables for current date after Apple Pay join:', activeDate);
+                await renderTables(activeDate);
+            }
+            
+            console.log('Apple Pay flow completed successfully!');
+            
+        } catch (error) {
+            console.error('Apple Pay success handler error:', error);
+            throw error;
+        }
+    }
+
+    // Process Apple Pay payment (legacy - no longer used)
     async function processApplePayPayment(paymentMethod) {
         try {
             const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
