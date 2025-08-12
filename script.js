@@ -556,7 +556,8 @@ const cardContent = document.createElement('div');
                         ageRange: '',
                         referralSource: '',
                         marketingOptIn: false,
-                        tableId: selectedTableId
+                        // Don't pass tableId here - we'll handle table joining separately through Stripe
+                        tableId: null
                     };
                 }
                 
@@ -678,7 +679,8 @@ const cardContent = document.createElement('div');
                     ageRange,
                     referralSource,
                     marketingOptIn,
-                    tableId: selectedTableId
+                    // Don't pass tableId here - we'll handle table joining separately through Stripe
+                    tableId: null
                 }));
                 
                 // Clear any existing user state
