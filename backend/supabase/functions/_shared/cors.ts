@@ -14,9 +14,24 @@ function normalizeOrigin(s: string) {
   try { return new URL(s).origin.toLowerCase(); } catch { return ""; }
 }
 function originFor(req: Request) {
-  const o = normalizeOrigin(req.headers.get("origin") ?? "");
-  const set = new Set(ALLOWED_ORIGINS.map(normalizeOrigin));
-  return set.has(o) ? o : ALLOWED_ORIGINS[0];
+  const origin = req.headers.get("origin") ?? "";
+  console.log('CORS: Request origin:', origin);
+  
+  // Normalize the request origin
+  const normalizedOrigin = normalizeOrigin(origin);
+  console.log('CORS: Normalized origin:', normalizedOrigin);
+  
+  // Check if origin is in allowed list
+  const allowedSet = new Set(ALLOWED_ORIGINS.map(normalizeOrigin));
+  console.log('CORS: Allowed origins:', Array.from(allowedSet));
+  
+  if (allowedSet.has(normalizedOrigin)) {
+    console.log('CORS: Origin allowed, returning:', normalizedOrigin);
+    return normalizedOrigin;
+  } else {
+    console.log('CORS: Origin not allowed, falling back to:', ALLOWED_ORIGINS[0]);
+    return ALLOWED_ORIGINS[0];
+  }
 }
 
 export function corsHeadersFor(req: Request): HeadersInit {
