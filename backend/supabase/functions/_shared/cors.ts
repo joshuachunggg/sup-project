@@ -1,6 +1,6 @@
 // /supabase/functions/_shared/cors.ts
 const ALLOWED_ORIGINS = [
-  "https://www.supdinner.com",
+  "https://app.supdinner.com",
   "https://www.supdinner.com/sign-up",
   "https://supdinner.com",
   "https://sup-380d9c.webflow.io",

@@ -283,12 +283,21 @@ const cardContent = document.createElement('div');
     
     // Initialize Apple Pay if available
     function initializeApplePay() {
+        console.log('=== Apple Pay Initialization Started ===');
         const applePayButton = document.getElementById('apple-pay-button');
-        if (!applePayButton) return;
+        if (!applePayButton) {
+            console.log('Apple Pay button element not found');
+            return;
+        }
+        
+        console.log('Apple Pay button element found:', applePayButton);
+        console.log('window.ApplePaySession exists:', !!window.ApplePaySession);
+        console.log('ApplePaySession.canMakePayments():', ApplePaySession?.canMakePayments());
         
         // Check if Apple Pay is available
         if (window.ApplePaySession && ApplePaySession.canMakePayments()) {
             try {
+                console.log('Creating Apple Pay element with Stripe...');
                 // Create Apple Pay button using Stripe Elements
                 const applePayElement = elements.create('applePay', {
                     style: {
@@ -296,6 +305,9 @@ const cardContent = document.createElement('div');
                         theme: 'light'
                     }
                 });
+                
+                console.log('Apple Pay element created:', applePayElement);
+                console.log('Mounting Apple Pay element to #apple-pay-button...');
                 
                 // Mount the Apple Pay button
                 applePayElement.mount('#apple-pay-button');
