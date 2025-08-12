@@ -287,39 +287,53 @@ const cardContent = document.createElement('div');
         if (!paymentRequestButton) return;
         
         try {
-            // Create payment request button using Stripe Elements
-            const paymentRequestElement = elements.create('paymentRequestButton', {
-                paymentRequest: {
-                    country: 'US',
-                    currency: 'usd',
-                    total: {
-                        label: 'Table Collateral',
-                        amount: 2500, // $25.00 in cents
-                    },
-                    requestPayerName: true,
-                    requestPayerEmail: true,
+            // Create the payment request first
+            const paymentRequest = stripe.paymentRequest({
+                country: 'US',
+                currency: 'usd',
+                total: {
+                    label: 'Table Collateral',
+                    amount: 2500, // $25.00 in cents
                 },
+                requestPayerName: true,
+                requestPayerEmail: true,
             });
             
-            // Mount the payment request button
-            paymentRequestElement.mount('#payment-request-button');
-            
-            // Handle payment request completion
-            paymentRequestElement.on('payment_method', async (event) => {
-                console.log('Payment request payment method received:', event);
-                
-                try {
-                    // Process the payment the same way as credit card
-                    await processApplePayPayment(event.paymentMethod);
-                } catch (error) {
-                    console.error('Payment request payment failed:', error);
-                    const cardErrors = document.getElementById('card-errors');
-                    cardErrors.textContent = `Payment failed: ${error.message}`;
-                    cardErrors.classList.remove('hidden');
+            // Check if payment request is supported
+            paymentRequest.canMakePayment().then(function(result) {
+                if (result) {
+                    console.log('Payment Request supported:', result);
+                    
+                    // Create payment request button using Stripe Elements
+                    const paymentRequestElement = elements.create('paymentRequestButton', {
+                        paymentRequest: paymentRequest,
+                    });
+                    
+                    // Mount the payment request button
+                    paymentRequestElement.mount('#payment-request-button');
+                    
+                    // Handle payment request completion
+                    paymentRequest.on('payment_method', async (event) => {
+                        console.log('Payment request payment method received:', event);
+                        
+                        try {
+                            // Process the payment the same way as credit card
+                            await processApplePayPayment(event.paymentMethod);
+                        } catch (error) {
+                            console.error('Payment request payment failed:', error);
+                            const cardErrors = document.getElementById('card-errors');
+                            cardErrors.textContent = `Payment failed: ${error.message}`;
+                            cardErrors.classList.remove('hidden');
+                        }
+                    });
+                    
+                    console.log('Payment Request Button initialized successfully');
+                } else {
+                    console.log('Payment Request not supported on this device');
+                    paymentRequestButton.style.display = 'none';
                 }
             });
             
-            console.log('Payment Request Button initialized successfully');
         } catch (error) {
             console.error('Failed to initialize Payment Request Button:', error);
             // Hide button if initialization fails
