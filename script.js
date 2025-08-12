@@ -1123,17 +1123,18 @@ const cardContent = document.createElement('div');
                      
                      if (setupError) throw setupError;
                      
-                     // Convert Apple Pay token to payment method data for Stripe
-                     const paymentMethodData = {
+                     // Create a PaymentMethod from the Apple Pay token and confirm the Setup Intent
+                     console.log('🔧 Creating payment method from Apple Pay token for Setup Intent...');
+                     const { paymentMethod: setupPm, error: setupPmError } = await stripe.createPaymentMethod({
                          type: 'card',
-                         card: {
-                             token: token.id
-                         }
-                     };
-                     
-                     // Confirm the setup intent with the Apple Pay token
+                         card: { token: token.id }
+                     });
+                     if (setupPmError) throw setupPmError;
+                     console.log('✅ SetupIntent payment method created:', setupPm.id);
+
+                     // Confirm the setup intent with the created payment method
                      const { setupIntent, error: confirmError } = await stripe.confirmCardSetup(setupData.client_secret, {
-                         payment_method_data: paymentMethodData
+                         payment_method: setupPm.id
                      });
                      
                      if (confirmError) throw confirmError;
