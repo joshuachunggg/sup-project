@@ -322,6 +322,7 @@ const cardContent = document.createElement('div');
                     // Handle payment request completion
                     paymentRequest.on('payment_method', async (event) => {
                         console.log('Payment request payment method received:', event);
+                        console.log('Payment method details:', event.paymentMethod);
                         
                         try {
                             // Process the payment the same way as credit card
@@ -999,6 +1000,8 @@ const cardContent = document.createElement('div');
                     console.log('Re-rendering tables for current date after Apple Pay join:', activeDate);
                     await renderTables(activeDate);
                 }
+                
+                console.log('Apple Pay flow completed successfully!');
                 
             } else {
                 throw new Error('Payment processing failed');
