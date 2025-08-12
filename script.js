@@ -874,6 +874,13 @@ const cardContent = document.createElement('div');
                 
                 // Close modal and refresh
                 closeModal(creditCardModal);
+                
+                // Force a re-render of the current day's tables to show updated state
+                if (activeDate) {
+                    console.log('Re-rendering tables for current date after join:', activeDate);
+                    await renderTables(activeDate);
+                }
+                
                 await refreshData();
                 
             } else {
@@ -1090,7 +1097,12 @@ const cardContent = document.createElement('div');
                     try {
                         const { data: table, error: tableError } = await supabaseClient.from('tables').select('dinner_date, dinner_time').eq('id', signup.table_id).single();
                         if (!tableError && table) {
-                            const dinnerDateTime = new Date(`${table.dinner_date}T${table.dinner_time}`);
+                            // Handle timezone properly - treat dinner_date as local date and dinner_time as local time
+                            const [year, month, day] = table.dinner_date.split('-');
+                            const [hours, minutes] = table.dinner_time.split(':');
+                            
+                            // Create date in local timezone (not UTC)
+                            const dinnerDateTime = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hours), parseInt(minutes));
                             const now = new Date();
                             
                             // If dinner time has passed (more than 2 hours after), consider it finished
