@@ -312,9 +312,12 @@ const cardContent = document.createElement('div');
             
             // Check if payment request is supported
             paymentRequest.canMakePayment().then(function(result) {
-                console.log('Payment Request canMakePayment result:', result);
+                console.log('🎯 Payment Request canMakePayment result:', result);
+                console.log('🔍 Apple Pay available:', result.applePay);
+                console.log('🔍 Google Pay available:', result.googlePay);
+                console.log('🔍 Link available:', result.link);
                 if (result) {
-                    console.log('Payment Request supported:', result);
+                    console.log('✅ Payment Request supported:', result);
                     
                     // Create payment request button using Stripe Elements
                     const paymentRequestElement = elements.create('paymentRequestButton', {
@@ -370,6 +373,7 @@ const cardContent = document.createElement('div');
                     
                     // Debug: Log all available events
                     console.log('🔍 Available payment request events:', Object.keys(paymentRequest));
+                    console.log('🔍 Event names:', Object.keys(paymentRequest).filter(key => key.startsWith('on')));
                     console.log('🔍 Payment request object:', paymentRequest);
                     
                     console.log('✅ Payment Request Button initialized successfully');
