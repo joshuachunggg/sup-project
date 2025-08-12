@@ -88,3 +88,23 @@ h2, h3, h4, h5, h6 {
     overflow-y: auto;
     max-height: calc(100vh - 200px); /* Adjust as needed */
 }
+
+/* Make all modals scrollable on mobile */
+.modal-content {
+    max-height: 90vh; /* 90% of viewport height */
+    overflow-y: auto; /* Enable vertical scrolling */
+}
+
+/* Ensure modal content is scrollable on small screens */
+@media (max-width: 768px) {
+    .modal-content {
+        max-height: 95vh; /* 95% of viewport height on mobile */
+        margin: 2.5vh auto; /* Small margin for mobile */
+    }
+    
+    /* Ensure the modal backdrop allows scrolling */
+    .modal-backdrop {
+        align-items: flex-start; /* Align to top instead of center */
+        padding: 1rem;
+    }
+}
