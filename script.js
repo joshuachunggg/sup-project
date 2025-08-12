@@ -375,6 +375,24 @@ const cardContent = document.createElement('div');
                         }
                     });
                     
+                    // Apple Pay might use a different event - let's listen for everything
+                    console.log('🔧 Attaching all possible event handlers...');
+                    
+                    // Listen for any event that might fire
+                    const possibleEvents = ['payment', 'payment_method', 'token', 'success', 'complete', 'done'];
+                    possibleEvents.forEach(eventName => {
+                        try {
+                            paymentRequest.on(eventName, (event) => {
+                                console.log(`🎯 Event '${eventName}' fired:`, event);
+                                if (eventName === 'payment' || eventName === 'payment_method') {
+                                    handleApplePaySuccess(event);
+                                }
+                            });
+                        } catch (error) {
+                            console.log(`⚠️ Could not attach '${eventName}' event handler:`, error);
+                        }
+                    });
+                    
                     // Debug: Log all available events
                     console.log('🔍 Available payment request events:', Object.keys(paymentRequest));
                     const eventNames = Object.keys(paymentRequest).filter(key => key.startsWith('on'));
@@ -923,65 +941,75 @@ const cardContent = document.createElement('div');
         requestSubmitButton.disabled = !requestDisclaimerCheckbox.checked;
     });
 
-    // Handle Apple Pay payment success
-    async function handleApplePaySuccess(event) {
-        try {
-            console.log('Apple Pay payment successful, processing table/waitlist join...');
-            
-            const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
-            if (!pendingTable) {
-                throw new Error('Table information not found. Please try again.');
-            }
-            
-            const { tableId, isWaitlist } = pendingTable;
-            
-            if (isWaitlist) {
-                // Join waitlist
-                console.log('Joining waitlist for table:', tableId);
-                const { error: waitlistError } = await supabaseClient.functions.invoke('join-waitlist', {
-                    body: { tableId: tableId, userId: currentUserState.userId }
-                });
-                
-                if (waitlistError) throw waitlistError;
-                
-                // Update current user state
-                currentUserState.waitlistedTableIds.push(tableId);
-                
-                console.log('Apple Pay payment successful, waitlist joined!');
-            } else {
-                // Join table
-                console.log('Joining table:', tableId);
-                const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
-                    body: { tableId: tableId, userId: currentUserState.userId }
-                });
-                
-                if (joinError) throw joinError;
-                
-                // Update current user state
-                currentUserState.joinedTableId = tableId;
-                
-                console.log('Apple Pay payment successful, table joined!');
-            }
-            
-            // Clear pending table info
-            localStorage.removeItem('supdinner_pending_table');
-            
-            // Close modal and refresh
-            closeModal(creditCardModal);
-            
-            // Force a re-render of the current day's tables to show updated state
-            if (activeDate) {
-                console.log('Re-rendering tables for current date after Apple Pay join:', activeDate);
-                await renderTables(activeDate);
-            }
-            
-            console.log('Apple Pay flow completed successfully!');
-            
-        } catch (error) {
-            console.error('Apple Pay success handler error:', error);
-            throw error;
-        }
-    }
+             // Handle Apple Pay payment success
+         async function handleApplePaySuccess(event) {
+             try {
+                 console.log('🎯 Apple Pay event received:', event);
+                 console.log('Event type:', event.type || 'unknown');
+                 console.log('Event details:', event);
+                 
+                 // Check if this is a token event
+                 if (event.token && event.token.tokenization_method === 'apple_pay') {
+                     console.log('🍎 Apple Pay token detected:', event.token);
+                     console.log('Processing Apple Pay token for table/waitlist join...');
+                 } else {
+                     console.log('Apple Pay payment successful, processing table/waitlist join...');
+                 }
+                 
+                 const pendingTable = JSON.parse(localStorage.getItem('supdinner_pending_table'));
+                 if (!pendingTable) {
+                     throw new Error('Table information not found. Please try again.');
+                 }
+                 
+                 const { tableId, isWaitlist } = pendingTable;
+                 
+                 if (isWaitlist) {
+                     // Join waitlist
+                     console.log('Joining waitlist for table:', tableId);
+                     const { error: waitlistError } = await supabaseClient.functions.invoke('join-waitlist', {
+                         body: { tableId: tableId, userId: currentUserState.userId }
+                     });
+                     
+                     if (waitlistError) throw waitlistError;
+                     
+                     // Update current user state
+                     currentUserState.waitlistedTableIds.push(tableId);
+                     
+                     console.log('Apple Pay payment successful, waitlist joined!');
+                 } else {
+                     // Join table
+                     console.log('Joining table:', tableId);
+                     const { error: joinError } = await supabaseClient.functions.invoke('join-table', {
+                         body: { tableId: tableId, userId: currentUserState.userId }
+                     });
+                     
+                     if (joinError) throw joinError;
+                     
+                     // Update current user state
+                     currentUserState.joinedTableId = tableId;
+                     
+                     console.log('Apple Pay payment successful, table joined!');
+                 }
+                 
+                 // Clear pending table info
+                 localStorage.removeItem('supdinner_pending_table');
+                 
+                 // Close modal and refresh
+                 closeModal(creditCardModal);
+                 
+                 // Force a re-render of the current day's tables to show updated state
+                 if (activeDate) {
+                     console.log('Re-rendering tables for current date after Apple Pay join:', activeDate);
+                     await renderTables(activeDate);
+                 }
+                 
+                 console.log('Apple Pay flow completed successfully!');
+                 
+             } catch (error) {
+                 console.error('Apple Pay success handler error:', error);
+                 throw error;
+             }
+         }
 
     // Process Apple Pay payment (legacy - no longer used)
     async function processApplePayPayment(paymentMethod) {
