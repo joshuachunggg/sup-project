@@ -58,6 +58,7 @@ supdinner/
 The app uses several key tables:
 - `users` - User profiles and phone numbers
 - `tables` - Available dinner tables with capacity and details
+  - includes: `city` (e.g., `NYC`, `Austin`), `neighborhood`, `dinner_date`, `time`, `age_range`, capacity fields
 - `signups` - User table bookings
 - `waitlists` - Waitlist entries for full tables
 - `collateral_holds` - Payment holds for table reservations

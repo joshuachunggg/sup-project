@@ -21,10 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
         suspensionEndDate: null
     };
     let activeDate = '';
+    let activeCity = 'NYC';
     let selectedTableId = null;
 
     // --- DOM ELEMENT REFERENCES ---
     const dayTabsContainer = document.getElementById('day-tabs');
+    const cityTabsContainer = document.getElementById('city-tabs');
     const tablesContainer = document.getElementById('tables-container');
     const loadingSpinner = document.getElementById('loading-spinner');
     const noTablesMessage = document.getElementById('no-tables-message');
@@ -96,6 +98,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CORE FUNCTIONS ---
 
+    // Render city tabs (NYC, Austin)
+    const renderCityTabs = () => {
+        if (!cityTabsContainer) return;
+        const cities = ['NYC', 'Austin'];
+        const savedCity = localStorage.getItem('supdinner_city');
+        if (savedCity) activeCity = savedCity;
+
+        let tabsHtml = '';
+        for (const city of cities) {
+            const isActive = city.toLowerCase() === activeCity.toLowerCase();
+            tabsHtml += `
+                <a href="#" data-city="${city}" class="city-tab whitespace-nowrap text-center py-3 px-1 ${isActive ? 'border-b-2 border-brand-accent text-brand-accent' : 'border-b-2 border-transparent text-gray-500 hover:text-brand-accent hover:border-brand-accent/50'}">
+                    <div class="font-heading">${city}</div>
+                </a>
+            `;
+        }
+        cityTabsContainer.innerHTML = tabsHtml;
+        document.querySelectorAll('.city-tab').forEach(tab => tab.addEventListener('click', handleCityTabClick));
+    };
+
     const renderTables = async (dateString) => {
         console.log('renderTables called with date:', dateString);
         console.log('currentUserState at render start:', currentUserState);
@@ -104,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingSpinner.classList.remove('hidden');
         noTablesMessage.classList.add('hidden');
 
-        const { data: filteredTables, error } = await supabaseClient.rpc('get_tables_for_day', {
+        const { data: dayTables, error } = await supabaseClient.rpc('get_tables_for_day', {
             day_string: dateString
         });
 
@@ -121,12 +143,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         loadingSpinner.classList.add('hidden');
 
-        if (!filteredTables || filteredTables.length === 0) {
+        // Filter by active city, defaulting missing city to 'NYC' for backward compatibility
+        const normalizedActiveCity = (activeCity || 'NYC').toLowerCase();
+        const tablesForCity = (dayTables || []).filter(t => ((t.city || 'NYC').toLowerCase() === normalizedActiveCity));
+
+        if (!tablesForCity || tablesForCity.length === 0) {
+            noTablesMessage.textContent = `No tables available for this day in ${activeCity}. Check back soon!`;
             noTablesMessage.classList.remove('hidden');
             return;
         }
 
-        filteredTables.forEach(table => {
+        tablesForCity.forEach(table => {
             const card = document.createElement('div');
             card.className = `bg-white rounded-xl shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300 ${currentUserState.joinedTableId === table.id ? 'ring-2 ring-brand-accent' : ''} ${table.is_cancelled ? 'opacity-60' : ''}`;
 
@@ -503,6 +530,24 @@ const cardContent = document.createElement('div');
     };
 
     // --- EVENT HANDLERS ---
+
+    const handleCityTabClick = (e) => {
+        e.preventDefault();
+        const tabElement = e.target.closest('.city-tab');
+        if (!tabElement) return;
+        activeCity = tabElement.dataset.city;
+        localStorage.setItem('supdinner_city', activeCity);
+        document.querySelectorAll('.city-tab').forEach(tab => {
+            const isActive = tab.dataset.city.toLowerCase() === activeCity.toLowerCase();
+            tab.classList.toggle('border-brand-accent', isActive);
+            tab.classList.toggle('text-brand-accent', isActive);
+            tab.classList.toggle('border-transparent', !isActive);
+            tab.classList.toggle('text-gray-500', !isActive);
+        });
+        if (activeDate) {
+            renderTables(activeDate);
+        }
+    };
     
     const handleTabClick = (e) => {
         e.preventDefault();
@@ -1762,6 +1807,7 @@ const cardContent = document.createElement('div');
 
             if (dates && dates.length > 0) {
                 console.log('=== About to call refreshData() ===');
+                renderCityTabs();
                 renderTabs(dates); 
                 await refreshData();
                 console.log('=== refreshData() completed ===');

@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS "public"."tables" (
     "time" "text" NOT NULL,
     "neighborhood" "text" NOT NULL,
     "age_range" "text" NOT NULL,
+    "city" "text" DEFAULT 'NYC'::text NOT NULL,
     "total_spots" integer NOT NULL,
     "spots_filled" integer NOT NULL,
     "is_locked" boolean DEFAULT false NOT NULL,

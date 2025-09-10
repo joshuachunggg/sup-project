@@ -1,5 +1,6 @@
 // Keeps your existing behavior (lock + cancel inside 36h window)
 // AND adds: hourly "day-of" holds for users who joined >7 days out (SetupIntent path).
+// AND adds: cleanup of old tables and signups 24 hours after dinner completion.
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
@@ -177,10 +178,76 @@ serve(async (req) => {
       }
     }
 
+    // === PART C: Cleanup old tables and signups 24 hours after dinner completion ===
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    // Find tables that finished 24+ hours ago
+    const { data: oldTables, error: cleanupError } = await supabaseAdmin
+      .from("tables")
+      .select("id")
+      .lt("dinner_date", twentyFourHoursAgo.toISOString());
+
+    if (cleanupError) {
+      console.error("Error finding old tables for cleanup:", cleanupError);
+    } else if (oldTables && oldTables.length > 0) {
+      const oldTableIds = oldTables.map(t => t.id);
+      
+      // Delete old signups first (due to foreign key constraints)
+      const { error: signupDeleteError } = await supabaseAdmin
+        .from("signups")
+        .delete()
+        .in("table_id", oldTableIds);
+      
+      if (signupDeleteError) {
+        console.error("Error deleting old signups:", signupDeleteError);
+      } else {
+        console.log(`Deleted signups for ${oldTableIds.length} old tables`);
+      }
+      
+      // Delete old waitlist entries
+      const { error: waitlistDeleteError } = await supabaseAdmin
+        .from("waitlists")
+        .delete()
+        .in("table_id", oldTableIds);
+      
+      if (waitlistDeleteError) {
+        console.error("Error deleting old waitlists:", waitlistDeleteError);
+      } else {
+        console.log(`Deleted waitlists for ${oldTableIds.length} old tables`);
+      }
+      
+      // Delete old collateral holds
+      const { error: collateralDeleteError } = await supabaseAdmin
+        .from("collateral_holds")
+        .delete()
+        .in("table_id", oldTableIds);
+      
+      if (collateralDeleteError) {
+        console.error("Error deleting old collateral holds:", collateralDeleteError);
+      } else {
+        console.log(`Deleted collateral holds for ${oldTableIds.length} old tables`);
+      }
+      
+      // Finally, delete the old tables
+      const { error: tableDeleteError } = await supabaseAdmin
+        .from("tables")
+        .delete()
+        .in("id", oldTableIds);
+      
+      if (tableDeleteError) {
+        console.error("Error deleting old tables:", tableDeleteError);
+      } else {
+        console.log(`Deleted ${oldTableIds.length} old tables and all related data`);
+      }
+    } else {
+      console.log("No old tables to clean up");
+    }
+
     return json(req, {
       success: true,
       locked_updated: lockedUpdated,
       holds_placed: holdsPlaced,
+      cleanup_message: "Cleanup completed successfully",
     }, 200);
   } catch (error: any) {
     console.error("Error in daily-table-maintenance:", error);

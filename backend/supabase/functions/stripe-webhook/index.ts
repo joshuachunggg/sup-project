@@ -3,21 +3,29 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import Stripe from "stripe";
 import { getStripe } from "../_shared/stripe.ts";
 import { getServiceClient } from "../_shared/db.ts";
+import { handleCors } from "../_shared/cors.ts";
 
 const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
 serve(async (req) => {
+  // Handle CORS preflight
+  const pre = handleCors(req);
+  if (pre) return pre;
+
   try {
     const stripe = getStripe();
     const rawBody = await req.text();
     const sig = req.headers.get("stripe-signature");
+    
     if (!sig || !webhookSecret) {
+      console.error("Missing signature or webhook secret");
       return new Response("Missing signature or webhook secret", { status: 400 });
     }
 
     let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+      console.log(`✅ Webhook received: ${event.type}`);
     } catch (err) {
       console.error("Webhook signature verification failed.", err);
       return new Response("Signature verification failed", { status: 400 });
@@ -126,14 +134,16 @@ serve(async (req) => {
         break;
       }
       default:
-        // Ignore others for now
+        // Log unhandled events for debugging
+        console.log(`ℹ️ Unhandled webhook event: ${event.type}`);
         break;
     }
 
+    console.log(`✅ Webhook processed successfully: ${event.type}`);
     return new Response("ok", { status: 200 });
 
   } catch (e) {
-    console.error(e);
+    console.error("❌ Webhook error:", e);
     return new Response("webhook-error", { status: 500 });
   }
 });

@@ -14,9 +14,9 @@ jobs:
             await fetch(process.env.SUPABASE_FUNCTION_URL, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${process.env.SERVICE_ROLE_KEY}`
+                'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
               }
             })
         env:
-          SUPABASE_FUNCTION_URL: https://<YOUR-PROJECT-REF>.supabase.co/functions/v1/daily-table-maintenance
+          SUPABASE_FUNCTION_URL: https://ennlvlcogzowropkwbiu.supabase.co/functions/v1/daily-table-maintenance
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SERVICE_ROLE_KEY }}
