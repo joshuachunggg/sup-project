@@ -1,0 +1,184 @@
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+serve(async (req) => {
+  // Handle CORS preflight request
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { 
+      headers: { 
+        "Access-Control-Allow-Origin": "*", 
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" 
+      } 
+    });
+  }
+
+  try {
+    const { 
+      email, 
+      password, 
+      phoneNumber, 
+      firstName, 
+      ageRange, 
+      referralSource, 
+      marketingOptIn,
+      tableId 
+    } = await req.json();
+
+    // Validate required fields
+    if (!email || !password || !phoneNumber || !firstName || !ageRange) {
+      throw new Error("Email, password, phone number, first name, and age range are required.");
+    }
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SERVICE_ROLE_KEY")!
+    );
+
+    // 1. Check if a user with this email already exists in Supabase Auth
+    const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers();
+    const emailExists = existingAuthUser.users.some(user => user.email === email);
+    
+    if (emailExists) {
+      throw new Error("An account with this email already exists. Please log in instead.");
+    }
+
+    // 2. Check if a user with this phone number already exists (legacy user)
+    const { data: existingPhoneUser } = await supabaseAdmin
+      .from("users")
+      .select("id, auth_user_id, email")
+      .eq("phone_number", phoneNumber)
+      .maybeSingle();
+
+    // 3. Create Supabase Auth user
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: false, // Require email verification
+      user_metadata: {
+        phone_number: phoneNumber,
+        first_name: firstName
+      }
+    });
+
+    if (authError) {
+      console.error("Auth user creation error:", authError);
+      throw new Error("Failed to create account. Please try again.");
+    }
+
+    // 4. Send verification email using the proper method
+    const { error: emailError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'signup',
+      email: email,
+      options: {
+        redirectTo: `${Deno.env.get("SUPABASE_URL")}/auth/callback`
+      }
+    });
+
+    if (emailError) {
+      console.error("Email verification error:", emailError);
+      // Don't fail the signup, but log the error
+      console.warn("User created but verification email failed to send");
+    }
+
+    // 4. Handle legacy user migration or create new user
+    let userId: string;
+    
+    if (existingPhoneUser) {
+      // Legacy user - update their record with new auth info
+      const { error: updateError } = await supabaseAdmin
+        .from("users")
+        .update({
+          auth_user_id: authUser.user.id,
+          email: email,
+          first_name: firstName,
+          age_range: ageRange,
+          referral_source: referralSource,
+          marketing_opt_in: marketingOptIn
+        })
+        .eq("id", existingPhoneUser.id);
+      
+      if (updateError) throw updateError;
+      userId = existingPhoneUser.id;
+    } else {
+      // New user - create profile
+      const { data: newUser, error: insertError } = await supabaseAdmin
+        .from("users")
+        .insert({
+          auth_user_id: authUser.user.id,
+          email: email,
+          first_name: firstName,
+          phone_number: phoneNumber,
+          age_range: ageRange,
+          referral_source: referralSource,
+          marketing_opt_in: marketingOptIn
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      userId = newUser.id;
+    }
+
+    // 5. If tableId is provided, join the table
+    if (tableId) {
+      // Check if the table is available
+      const { data: table, error: tableError } = await supabaseAdmin
+        .from("tables")
+        .select("spots_filled, total_spots, is_locked")
+        .eq("id", tableId)
+        .single();
+
+      if (tableError || !table) {
+        throw new Error(`Could not find table with ID: ${tableId}`);
+      }
+
+      if (table.is_locked) {
+        throw new Error("This table is locked and cannot be joined.");
+      }
+
+      if (table.spots_filled >= table.total_spots) {
+        throw new Error("This table is full.");
+      }
+
+      // Create the signup record
+      const { error: signupError } = await supabaseAdmin
+        .from("signups")
+        .insert({ user_id: userId, table_id: tableId });
+      
+      if (signupError) throw signupError;
+
+      // Increment spots_filled
+      const newSpotsFilled = table.spots_filled + 1;
+      const { error: updateError } = await supabaseAdmin
+        .from("tables")
+        .update({ spots_filled: newSpotsFilled })
+        .eq("id", tableId);
+      
+      if (updateError) throw updateError;
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      userId: userId,
+      authUserId: authUser.user.id,
+      message: existingPhoneUser ? "Legacy account upgraded successfully!" : "Account created successfully!",
+      emailSent: true,
+      note: "Please check your email for a verification link. If you don't see it, check your spam folder."
+    }), {
+      headers: { 
+        "Content-Type": "application/json", 
+        "Access-Control-Allow-Origin": "*" 
+      },
+      status: 200,
+    });
+  } catch (error) {
+    console.error("Error in auth-signup function:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { 
+        "Content-Type": "application/json", 
+        "Access-Control-Allow-Origin": "*" 
+      },
+      status: 400,
+    });
+  }
+});
