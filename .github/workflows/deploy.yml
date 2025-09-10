@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Required since GitHub now defaults GITHUB_TOKEN to read-only
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
